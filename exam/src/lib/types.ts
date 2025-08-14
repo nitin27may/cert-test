@@ -16,6 +16,7 @@ export interface Question {
   module: string;
   category: string;
   type: 'single' | 'multiple';
+  difficulty: 'easy' | 'medium' | 'difficult';
   question: string;
   options: string[];
   correct: number | number[];

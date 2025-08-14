@@ -49,7 +49,7 @@ class ExamService {
     }
   }
 
-  async getExamQuestions(examId: string, count?: number, selectedTopics?: string[]): Promise<Question[]> {
+  async getExamQuestions(examId: string, count?: number, selectedTopics?: string[], difficulty?: string): Promise<Question[]> {
     const exam = await this.getExamById(examId);
     if (!exam) {
       throw new Error(`Exam ${examId} not found`);
@@ -60,6 +60,11 @@ class ExamService {
     // Apply topic filtering if provided
     if (selectedTopics && selectedTopics.length > 0) {
       questions = questions.filter(q => selectedTopics.includes(q.topic));
+    }
+    
+    // Apply difficulty filtering if provided and not 'mix'
+    if (difficulty && difficulty !== 'mix') {
+      questions = questions.filter(q => q.difficulty === difficulty);
     }
     
     // Shuffle questions for variety

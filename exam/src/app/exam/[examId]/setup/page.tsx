@@ -15,6 +15,7 @@ export default function ExamSetupPage() {
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [questionCount, setQuestionCount] = useState(20);
   const [timeLimit, setTimeLimit] = useState(60);
+  const [difficulty, setDifficulty] = useState<string>('mix');
 
   useEffect(() => {
     if (exam) {
@@ -43,7 +44,8 @@ export default function ExamSetupPage() {
     const config = {
       selectedTopics,
       questionCount,
-      timeLimit
+      timeLimit,
+      difficulty
     };
     sessionStorage.setItem(`exam-config-${examId}`, JSON.stringify(config));
     
@@ -170,6 +172,26 @@ export default function ExamSetupPage() {
                   </select>
                 </div>
 
+                {/* Difficulty Level */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Difficulty Level
+                  </label>
+                  <select
+                    value={difficulty}
+                    onChange={(e) => setDifficulty(e.target.value)}
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-400 dark:focus:border-blue-400 transition-colors"
+                  >
+                    <option value="mix">Mix (All Levels)</option>
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="difficult">Difficult</option>
+                  </select>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Choose specific difficulty or mix all levels for comprehensive practice
+                  </p>
+                </div>
+
                 {/* Summary */}
                 <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
                   <h4 className="font-medium text-gray-900 dark:text-white mb-2">Summary</h4>
@@ -177,6 +199,7 @@ export default function ExamSetupPage() {
                     <li>Topics: {selectedTopics.length} of {exam.topics.length}</li>
                     <li>Questions: {questionCount}</li>
                     <li>Time: {timeLimit} minutes</li>
+                    <li>Difficulty: {difficulty === 'mix' ? 'All Levels' : difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}</li>
                   </ul>
                 </div>
               </div>

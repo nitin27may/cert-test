@@ -71,6 +71,7 @@
           "module": "Virtual Networks",
           "category": "Virtual Networks",
           "type": "single",
+          "difficulty": "medium",
           "question": "You are planning a virtual network that must support 2000 virtual machines across multiple subnets. You want to minimize IP address waste while ensuring room for growth. What address space should you choose?",
           "options": [
             "10.0.0.0/21 (2046 addresses)",
@@ -99,6 +100,7 @@
           "module": "Network Security",
           "category": "Network Security Groups",
           "type": "single",
+          "difficulty": "easy",
           "question": "You have a web application with the following NSG rules:\n- Priority 100: Allow HTTP (port 80) from Internet\n- Priority 200: Allow HTTPS (port 443) from Internet\n- Priority 300: Allow SSH (port 22) from 10.0.0.0/24\n- Priority 1000: Deny All\n\nYou need to block HTTP traffic from IP 203.0.113.50 while keeping HTTPS allowed. What should you do?",
           "options": [
             "Create a rule with priority 50 to deny HTTP from 203.0.113.50",
@@ -127,6 +129,7 @@
           "module": "Load Balancing",
           "category": "Azure Load Balancer",
           "type": "multiple",
+          "difficulty": "difficult",
           "question": "You are configuring a Standard Load Balancer for a multi-tier application. Which of the following features are available with Standard Load Balancer? (Select all that apply)",
           "options": [
             "Availability Zone support",
@@ -159,6 +162,7 @@
           "module": "VPN & ExpressRoute",
           "category": "VPN Gateway",
           "type": "single",
+          "difficulty": "medium",
           "question": "Your organization needs to establish a Site-to-Site VPN connection to Azure. The on-premises VPN device supports:\n- IKEv1 and IKEv2\n- Policy-based and Route-based VPN\n- BGP routing\n\nWhich Azure VPN Gateway configuration provides the most flexibility and best performance?",
           "options": [
             "Basic SKU with Policy-based VPN",
@@ -187,6 +191,7 @@
           "module": "DNS",
           "category": "DNS",
           "type": "single",
+          "difficulty": "easy",
           "question": "You are configuring a custom domain for an Azure App Service. The domain is managed by Azure DNS. What is the correct sequence of steps?",
           "options": [
             "1. Create CNAME record 2. Add custom domain to App Service 3. Create TXT record for verification",

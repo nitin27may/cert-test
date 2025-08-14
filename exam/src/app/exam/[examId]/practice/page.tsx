@@ -11,6 +11,7 @@ interface ExamConfig {
   selectedTopics: string[];
   questionCount: number;
   timeLimit: number;
+  difficulty?: string;
 }
 
 export default function ExamPracticePage() {
@@ -33,7 +34,7 @@ export default function ExamPracticePage() {
     setQuestionCount(examConfig.questionCount);
   }, [examId, router]);
 
-  const { exam, questions, loading: isLoading, error } = useExamData(examId, questionCount, config?.selectedTopics);
+  const { exam, questions, loading: isLoading, error } = useExamData(examId, questionCount, config?.selectedTopics, config?.difficulty);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<Record<number, number | number[]>>({});
   const [showExplanation, setShowExplanation] = useState(false);
