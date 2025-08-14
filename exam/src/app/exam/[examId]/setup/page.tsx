@@ -13,8 +13,8 @@ export default function ExamSetupPage() {
   
   const { exam, loading: isLoading, error } = useExamData(examId);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
-  const [questionCount, setQuestionCount] = useState(20);
-  const [timeLimit, setTimeLimit] = useState(60);
+  const [questionCount, setQuestionCount] = useState(50);
+  const [timeLimit, setTimeLimit] = useState(90);
   const [difficulty, setDifficulty] = useState<string>('mix');
 
   useEffect(() => {

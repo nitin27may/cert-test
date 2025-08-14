@@ -220,6 +220,7 @@
           "module": "Virtual Networks",
           "category": "Network Peering",
           "type": "multiple",
+          "difficulty": "difficult",
           "question": "You have configured VNet peering between VNet1 (10.1.0.0/16) and VNet2 (10.2.0.0/16). Which statements about VNet peering are correct? (Select all that apply)",
           "options": [
             "Traffic between peered VNets is encrypted by default",

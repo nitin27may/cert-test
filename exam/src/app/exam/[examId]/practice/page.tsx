@@ -319,11 +319,20 @@ export default function ExamPracticePage() {
           {/* Question Content */}
           <div className="lg:col-span-3">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6 border border-gray-100 dark:border-gray-700">
-              <div className="mb-4">
+              <div className="mb-4 flex flex-wrap gap-2">
                 <span className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs px-2 py-1 rounded-full">
                   {/* Find topic name from topic ID */}
                   {exam?.topics.find(t => t.id === currentQuestion.topic)?.name || currentQuestion.topic}
                 </span>
+                {currentQuestion.difficulty && (
+                  <span className={`inline-block text-xs px-2 py-1 rounded-full ${
+                    currentQuestion.difficulty === 'easy' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
+                    currentQuestion.difficulty === 'medium' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
+                    'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+                  }`}>
+                    {currentQuestion.difficulty.charAt(0).toUpperCase() + currentQuestion.difficulty.slice(1)}
+                  </span>
+                )}
               </div>
               
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
@@ -427,6 +436,26 @@ export default function ExamPracticePage() {
                         </span> {reason}
                       </div>
                     ))}
+                    
+                    {/* Reference Link */}
+                    {currentQuestion.reference && (
+                      <div className="mt-4 pt-4 border-t border-blue-200 dark:border-blue-700">
+                        <div className="font-semibold text-blue-900 dark:text-blue-300 mb-2">
+                          📚 Reference:
+                        </div>
+                        <a
+                          href={currentQuestion.reference.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline hover:no-underline transition-colors inline-flex items-center gap-1"
+                        >
+                          {currentQuestion.reference.title}
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
