@@ -394,7 +394,7 @@ export default function ExamPracticePage() {
                             {isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}
                           </div>
                         )}
-                        <span className="font-medium mr-2">
+                        <span className="font-medium mr-3 min-w-[24px]">
                           {String.fromCharCode(65 + index)}.
                         </span>
                         <span className="flex-1">{option}</span>

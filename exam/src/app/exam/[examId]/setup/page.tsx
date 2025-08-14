@@ -84,42 +84,42 @@ export default function ExamSetupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Header />
       <div className="max-w-4xl mx-auto p-8">
-        <div className="bg-white rounded-lg shadow-lg p-8">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 border border-gray-100 dark:border-gray-700">
           {/* Header */}
           <div className="mb-8">
             <button
               onClick={() => router.push('/')}
-              className="text-blue-500 hover:text-blue-600 mb-4 flex items-center"
+              className="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 mb-4 flex items-center"
             >
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path>
               </svg>
               Back to Exams
             </button>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">{exam.title}</h1>
-            <p className="text-gray-600">{exam.description}</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{exam.title}</h1>
+            <p className="text-gray-600 dark:text-gray-300">{exam.description}</p>
           </div>
 
           {/* Configuration */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Topics Selection */}
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Select Topics</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Select Topics</h3>
               <div className="space-y-3">
                 {exam.topics.map((topic) => (
-                  <label key={topic.id} className="flex items-start">
+                  <label key={topic.id} className="flex items-start p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors">
                     <input
                       type="checkbox"
                       checked={selectedTopics.includes(topic.id)}
                       onChange={() => handleTopicToggle(topic.id)}
-                      className="mt-1 mr-3"
+                      className="mt-1 mr-3 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                     />
                     <div>
-                      <div className="font-medium text-gray-900">{topic.name}</div>
-                      <div className="text-sm text-gray-500">
+                      <div className="font-medium text-gray-900 dark:text-white">{topic.name}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
                         {topic.modules.join(', ')}
                       </div>
                     </div>
@@ -130,35 +130,37 @@ export default function ExamSetupPage() {
 
             {/* Exam Settings */}
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Exam Settings</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Exam Settings</h3>
               
               <div className="space-y-6">
                 {/* Question Count */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Number of Questions
                   </label>
                   <select
                     value={questionCount}
                     onChange={(e) => setQuestionCount(Number(e.target.value))}
-                    className="w-full border border-gray-300 rounded-lg p-2"
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-400 dark:focus:border-blue-400 transition-colors"
                   >
-                    <option value={5}>5 Questions</option>
                     <option value={10}>10 Questions</option>
                     <option value={20}>20 Questions</option>
+                    <option value={50}>50 Questions</option>
+                    <option value={80}>80 Questions</option>
+                    <option value={100}>100 Questions</option>
                     <option value={exam.totalQuestions}>All Questions ({exam.totalQuestions})</option>
                   </select>
                 </div>
 
                 {/* Time Limit */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Time Limit (minutes)
                   </label>
                   <select
                     value={timeLimit}
                     onChange={(e) => setTimeLimit(Number(e.target.value))}
-                    className="w-full border border-gray-300 rounded-lg p-2"
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-400 dark:focus:border-blue-400 transition-colors"
                   >
                     <option value={15}>15 minutes</option>
                     <option value={30}>30 minutes</option>
@@ -169,9 +171,9 @@ export default function ExamSetupPage() {
                 </div>
 
                 {/* Summary */}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-gray-900 mb-2">Summary</h4>
-                  <ul className="text-sm text-gray-600 space-y-1">
+                <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
+                  <h4 className="font-medium text-gray-900 dark:text-white mb-2">Summary</h4>
+                  <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
                     <li>Topics: {selectedTopics.length} of {exam.topics.length}</li>
                     <li>Questions: {questionCount}</li>
                     <li>Time: {timeLimit} minutes</li>
@@ -186,7 +188,7 @@ export default function ExamSetupPage() {
             <button
               onClick={handleStartExam}
               disabled={selectedTopics.length === 0}
-              className="bg-blue-500 text-white px-8 py-3 rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-lg font-medium"
+              className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-8 py-3 rounded-lg text-lg font-medium transition-colors"
             >
               Start Practice Exam
             </button>
