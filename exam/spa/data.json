@@ -1,0 +1,993 @@
+{
+  "exams": {
+    "az-104": {
+      "id": "az-104",
+      "title": "Azure AZ-104 Practice Exam",
+      "description": "Microsoft Certified: Azure Administrator Associate",
+      "totalQuestions": 200,
+      "networkingFocusPercentage": 60,
+      "topics": [
+        {
+          "id": "identity",
+          "name": "Manage Azure identities and governance",
+          "modules": ["Azure AD", "Users and Groups", "RBAC", "Subscriptions", "Azure Policy"]
+        },
+        {
+          "id": "storage",
+          "name": "Implement and manage storage",
+          "modules": ["Storage Accounts", "Blob Storage", "File Storage", "Storage Security", "Data Transfer"]
+        },
+        {
+          "id": "compute",
+          "name": "Deploy and manage Azure compute resources",
+          "modules": ["Virtual Machines", "VM Extensions", "Containers", "App Services", "Backup"]
+        },
+        {
+          "id": "networking",
+          "name": "Configure and manage virtual networking",
+          "modules": ["Virtual Networks", "Network Security", "Load Balancing", "VPN & ExpressRoute", "DNS", "Application Gateway"]
+        },
+        {
+          "id": "monitoring",
+          "name": "Monitor and back up Azure resources",
+          "modules": ["Azure Monitor", "Log Analytics", "Alerts", "Backup", "Site Recovery"]
+        }
+      ],
+      "questions": [
+    {
+      "id": 1,
+      "topic": "networking",
+      "module": "Virtual Networks",
+      "category": "Virtual Networks",
+      "type": "single",
+      "question": "You are planning a virtual network that must support 2000 virtual machines across multiple subnets. You want to minimize IP address waste while ensuring room for growth. What address space should you choose?",
+      "options": [
+        "10.0.0.0/21 (2046 addresses)",
+        "10.0.0.0/20 (4094 addresses)", 
+        "10.0.0.0/19 (8190 addresses)",
+        "10.0.0.0/18 (16382 addresses)"
+      ],
+      "correct": 2,
+    "explanation": "For 2000 VMs with room for growth, /19 provides 8190 usable addresses (8192 - 2 reserved). This allows for proper subnetting while minimizing waste. /20 would be too small (4094), while /18 would be excessive for the requirement.",
+    "reasoning": {
+        "correct": "A /19 subnet provides 8190 usable IP addresses (2^13 - 2 reserved addresses). This gives enough capacity for 2000 VMs with significant room for growth (4x capacity) while still being efficient. It allows for proper subnet segmentation across multiple subnets within the address space.",
+        "why_others_wrong": {
+            "0": "/21 provides only 2046 addresses, which is barely enough for 2000 VMs with no room for growth or subnet overhead.",
+            "1": "/20 provides 4094 addresses, which gives some growth but may be insufficient for long-term scaling and multiple subnet requirements.",
+            "3": "/18 provides 16382 addresses, which is excessive and wastes IP address space unnecessarily for the stated requirement."
+        }
+    },
+    "reference": {
+        "title": "Plan virtual networks - Azure Virtual Network",
+        "url": "https://docs.microsoft.com/en-us/azure/virtual-network/virtual-network-vnet-plan-design-arm"
+    }
+    },
+    {
+      "id": 2,
+      "topic": "networking",
+      "module": "Network Security",
+      "category": "Network Security Groups",
+      "type": "single",
+      "question": "You have a web application with the following NSG rules:\n- Priority 100: Allow HTTP (port 80) from Internet\n- Priority 200: Allow HTTPS (port 443) from Internet\n- Priority 300: Allow SSH (port 22) from 10.0.0.0/24\n- Priority 1000: Deny All\n\nYou need to block HTTP traffic from IP 203.0.113.50 while keeping HTTPS allowed. What should you do?",
+      "options": [
+        "Create a rule with priority 50 to deny HTTP from 203.0.113.50",
+        "Create a rule with priority 150 to deny HTTP from 203.0.113.50",
+        "Modify the existing HTTP rule to exclude 203.0.113.50",
+        "Create a rule with priority 1100 to deny HTTP from 203.0.113.50"
+      ],
+      "correct": 0,
+    "explanation": "NSG rules are processed in priority order (lower numbers first). To block specific traffic before the general allow rule, create a deny rule with priority 50, which will be processed before the priority 100 allow rule.",
+    "reasoning": {
+        "correct": "NSG rules are evaluated in ascending priority order (100, 200, 300, etc.). To block specific traffic that would otherwise be allowed by a general rule, you must place the deny rule with a lower priority number so it's evaluated first. Priority 50 will be processed before priority 100, effectively blocking HTTP from the specific IP.",
+        "why_others_wrong": {
+            "1": "Priority 150 would be evaluated after priority 100 (Allow HTTP), so the traffic would already be allowed and never reach the deny rule.",
+            "2": "NSG rules cannot exclude specific IPs within a single rule - you need separate rules for different source IP ranges.",
+            "3": "Priority 1100 would be evaluated after all other rules, including the Allow HTTP rule at priority 100, making it ineffective."
+        }
+    },
+    "reference": {
+        "title": "Network security groups - Azure Virtual Network",
+        "url": "https://docs.microsoft.com/en-us/azure/virtual-network/network-security-groups-overview"
+    }
+    },
+    {
+      "id": 3,
+      "topic": "networking",
+      "module": "Load Balancing",
+      "category": "Azure Load Balancer",
+      "type": "multiple",
+      "question": "You are configuring a Standard Load Balancer for a multi-tier application. Which of the following features are available with Standard Load Balancer? (Select all that apply)",
+      "options": [
+        "Availability Zone support",
+        "Multiple frontend IPs",
+        "Health probes with HTTPS protocol",
+        "Port 0 rules for all ports",
+        "Outbound rules configuration"
+      ],
+      "correct": [0, 1, 2, 4],
+    "explanation": "Standard Load Balancer supports: Availability Zones, multiple frontend IPs, HTTPS health probes, and outbound rules configuration. Port 0 rules are not supported - you must specify explicit ports or port ranges.",
+    "reasoning": {
+        "correct": "Standard Load Balancer is the premium SKU that provides zone redundancy across Availability Zones, supports multiple frontend IP configurations for different services, includes HTTPS health probes for application-layer health checking, and offers outbound rules for controlling egress traffic.",
+        "why_others_wrong": {
+            "3": "Port 0 (wildcard for all ports) is not supported in Azure Load Balancer. You must explicitly specify individual ports or port ranges in load balancing rules. This is a security design choice to ensure explicit configuration."
+        }
+    },
+    "reference": {
+        "title": "Standard Load Balancer overview - Azure Load Balancer",
+        "url": "https://docs.microsoft.com/en-us/azure/load-balancer/load-balancer-standard-overview"
+    }
+    },
+    {
+      "id": 4,
+      "topic": "networking",
+      "module": "VPN & ExpressRoute",
+      "category": "VPN Gateway",
+      "type": "single",
+      "question": "Your organization needs to establish a Site-to-Site VPN connection to Azure. The on-premises VPN device supports:\n- IKEv1 and IKEv2\n- Policy-based and Route-based VPN\n- BGP routing\n\nWhich Azure VPN Gateway configuration provides the most flexibility and best performance?",
+      "options": [
+        "Basic SKU with Policy-based VPN",
+        "VpnGw1 SKU with Route-based VPN and BGP enabled",
+        "Standard SKU with Policy-based VPN and BGP enabled",
+        "VpnGw2 SKU with Policy-based VPN"
+      ],
+      "correct": 1,
+    "explanation": "VpnGw1 with Route-based VPN and BGP provides the most flexibility. Route-based VPNs support multiple tunnels, point-to-site connections, and better performance. BGP enables dynamic routing and automatic failover. Basic SKU doesn't support BGP.",
+    "reasoning": {
+        "correct": "VpnGw1 SKU with Route-based VPN and BGP is optimal because: 1) Route-based VPNs offer more flexibility than policy-based (support for point-to-site, multiple site-to-site connections, and transit routing), 2) BGP provides dynamic routing with automatic failover and load balancing, 3) VpnGw1 offers better performance than Basic while being cost-effective compared to VpnGw2.",
+        "why_others_wrong": {
+            "0": "Basic SKU doesn't support BGP routing, which limits dynamic routing capabilities and automatic failover. It also has lower throughput limits.",
+            "2": "Standard SKU with Policy-based VPN is less flexible than Route-based VPN and doesn't support point-to-site connections or multiple site-to-site tunnels.",
+            "3": "VpnGw2 with Policy-based VPN doesn't utilize the device's route-based capabilities and BGP support, making it less flexible and not cost-effective."
+        }
+    },
+    "reference": {
+        "title": "VPN Gateway design - Azure VPN Gateway",
+        "url": "https://docs.microsoft.com/en-us/azure/vpn-gateway/design"
+    }
+    },
+    {
+      "id": 5,
+      "topic": "networking",
+      "module": "DNS",
+      "category": "DNS",
+      "type": "single",
+      "question": "You are configuring a custom domain for an Azure App Service. The domain is managed by Azure DNS. What is the correct sequence of steps?",
+      "options": [
+        "1. Create CNAME record 2. Add custom domain to App Service 3. Create TXT record for verification",
+        "1. Add custom domain to App Service 2. Create TXT record for verification 3. Create CNAME record",
+        "1. Create TXT record for verification 2. Add custom domain to App Service 3. Create CNAME record",
+        "1. Create CNAME record 2. Create TXT record for verification 3. Add custom domain to App Service"
+      ],
+      "correct": 2,
+      "explanation": "Correct sequence: 1) Create TXT record for domain verification 2) Add custom domain to App Service (verification will succeed) 3) Create CNAME record to point to App Service. The TXT record proves domain ownership before Azure allows the custom domain to be added.",
+      "reasoning": {
+        "correct": "Azure requires domain ownership verification before allowing custom domains to be added to App Services. The TXT record (asuid.contoso.com) proves you own the domain. Only after creating this verification record can you successfully add the custom domain to the App Service. Finally, the CNAME record routes traffic from your custom domain to the App Service's azurewebsites.net endpoint.",
+        "why_others_wrong": {
+          "0": "Creating the CNAME record first doesn't provide domain verification, and Azure will reject adding the custom domain without proof of ownership.",
+          "1": "Adding the custom domain first will fail because Azure cannot verify domain ownership without the TXT verification record.",
+          "3": "This sequence places domain addition last, but the CNAME record creation will fail if the custom domain hasn't been added to the App Service first."
+        }
+      },
+      "reference": {
+        "title": "Map an existing custom DNS name to Azure App Service",
+        "url": "https://docs.microsoft.com/en-us/azure/app-service/app-service-web-tutorial-custom-domain"
+      }
+    },
+    {
+      "id": 6,
+      "topic": "networking",
+      "module": "Virtual Networks",
+      "category": "Network Peering",
+      "type": "multiple",
+      "question": "You have configured VNet peering between VNet1 (10.1.0.0/16) and VNet2 (10.2.0.0/16). Which statements about VNet peering are correct? (Select all that apply)",
+      "options": [
+        "Traffic between peered VNets is encrypted by default",
+        "Peering is not transitive - VNet1 cannot reach VNet3 through VNet2",
+        "Both VNets must be in the same Azure region",
+        "You can peer VNets across different Azure subscriptions",
+        "NSG rules apply to traffic between peered VNets"
+      ],
+      "correct": [1, 3, 4],
+      "explanation": "Correct: VNet peering is not transitive, supports cross-subscription peering, and NSGs apply to peered traffic. Incorrect: Traffic is not encrypted (it's private but not encrypted), and Global VNet peering allows cross-region peering.",
+      "reasoning": {
+        "correct": "VNet peering creates direct network connections but is not transitive by design for security reasons. Cross-subscription peering is supported with proper permissions. NSG rules are evaluated and applied to traffic between peered VNets, allowing fine-grained security control. Global VNet peering enables cross-region connectivity, and traffic flows over Microsoft's private backbone without encryption but with full isolation.",
+        "why_others_wrong": {
+          "0": "Traffic between peered VNets travels over Microsoft's private backbone and is isolated but not encrypted. If encryption is required, you need to implement it at the application layer or use VPN gateways.",
+          "2": "Global VNet peering allows peering between VNets in different Azure regions. Regional restrictions only apply to classic VNet peering which is being deprecated."
+        }
+      },
+      "reference": {
+        "title": "Virtual network peering - Azure Virtual Network",
+        "url": "https://docs.microsoft.com/en-us/azure/virtual-network/virtual-network-peering-overview"
+      }
+    },
+    {
+      "id": 7,
+      "topic": "networking",
+      "module": "Network Security",
+      "category": "Azure Firewall",
+      "type": "single",
+      "question": "You are configuring Azure Firewall for a hub-and-spoke topology. The firewall has these rule collections:\n- NAT rules: Priority 100\n- Network rules: Priority 200  \n- Application rules: Priority 300\n\nA packet matches rules in all three collections. Which rule is applied?",
+      "options": [
+        "The rule with the lowest priority number within each collection",
+        "Only the NAT rule (processed first)",
+        "All matching rules are applied in sequence",
+        "The most specific rule regardless of collection type"
+      ],
+      "correct": 1,
+      "explanation": "Azure Firewall processes rule collections in order: NAT rules first, then Network rules, then Application rules. Processing stops when the first match is found. Since NAT rules are processed first, only the NAT rule would be applied.",
+      "reasoning": {
+        "correct": "Azure Firewall uses a deterministic rule processing order: DNAT rules are processed first, followed by Network rules, then Application rules. This order ensures that destination NAT translation occurs before any filtering decisions. Once a rule matches and an action is taken (allow, deny, or DNAT), processing stops and subsequent rule collections are not evaluated for that packet.",
+        "why_others_wrong": {
+          "0": "While priority numbers matter within a collection, the collection type order takes precedence. NAT rules are always processed before network or application rules regardless of priority numbers.",
+          "2": "Azure Firewall follows a 'first match wins' principle. Once a rule matches and an action is determined, no further rules are processed for that packet.",
+          "3": "Rule specificity doesn't override the collection processing order. NAT rules are always processed first regardless of how specific network or application rules might be."
+        }
+      },
+      "reference": {
+        "title": "Azure Firewall rule processing logic",
+        "url": "https://docs.microsoft.com/en-us/azure/firewall/rule-processing"
+      }
+    },
+    {
+      "id": 8,
+      "topic": "networking",
+      "module": "Application Gateway",
+      "category": "Application Gateway",
+      "type": "multiple",
+      "question": "You are implementing Azure Application Gateway with Web Application Firewall (WAF) for a web application. Which routing methods are supported? (Select all that apply)",
+      "options": [
+        "Path-based routing",
+        "Multi-site hosting",
+        "IP-based routing",
+        "URL rewrite",
+        "Header-based routing"
+      ],
+      "correct": [0, 1, 3],
+      "explanation": "Application Gateway supports: Path-based routing (route by URL path), Multi-site hosting (route by hostname), and URL rewrite. IP-based routing and header-based routing are not standard Application Gateway features.",
+      "reasoning": {
+        "correct": "Azure Application Gateway provides layer 7 load balancing with path-based routing (routing based on URL paths like /api/* to backend pool 1), multi-site hosting (routing based on host headers like contoso.com vs fabrikam.com), and URL rewrite capabilities (modifying URL paths before forwarding to backends). These features enable sophisticated traffic routing for complex web applications.",
+        "why_others_wrong": {
+          "2": "IP-based routing is not a feature of Application Gateway. Application Gateway operates at layer 7 and routes based on HTTP/HTTPS attributes like hostname and URL path, not source IP addresses.",
+          "4": "While Application Gateway can inspect HTTP headers, header-based routing (routing decisions based on custom HTTP headers) is not a standard routing method. Routing is primarily based on hostname and URL path."
+        }
+      },
+      "reference": {
+        "title": "Application Gateway features - Azure Application Gateway",
+        "url": "https://docs.microsoft.com/en-us/azure/application-gateway/features"
+      }
+    },
+    {
+      "id": 9,
+      "topic": "networking",
+      "module": "Virtual Networks",
+      "category": "User Defined Routes",
+      "type": "single",
+      "question": "You have a subnet with these routes:\n- System route: 0.0.0.0/0 → Internet\n- UDR: 10.1.0.0/16 → Virtual Appliance (10.0.1.4)\n- UDR: 10.1.1.0/24 → VNet Gateway\n- BGP route: 10.1.1.0/25 → ExpressRoute\n\nWhere will traffic to 10.1.1.10 be routed?",
+      "options": [
+        "Internet (system route)",
+        "Virtual Appliance at 10.0.1.4",
+        "VNet Gateway",
+        "ExpressRoute connection"
+      ],
+      "correct": 3,
+      "explanation": "Route priority: UDR > BGP > System routes. Among overlapping routes, more specific (longer prefix) takes precedence. 10.1.1.0/25 (BGP) is more specific than 10.1.1.0/24 (UDR), so traffic goes to ExpressRoute.",
+      "reasoning": {
+        "correct": "Azure routing follows a priority order: User Defined Routes (UDR) > BGP routes > System routes. However, among routes of the same type, the most specific route (longest prefix match) wins. The BGP route 10.1.1.0/25 (/25 = 25-bit subnet mask) is more specific than the UDR route 10.1.1.0/24 (/24 = 24-bit subnet mask). Since 10.1.1.10 falls within both ranges but the BGP route is more specific, traffic will be routed to the ExpressRoute connection.",
+        "why_others_wrong": {
+          "0": "The system route 0.0.0.0/0 has the lowest priority and only applies when no more specific routes match.",
+          "1": "The UDR for 10.1.0.0/16 does match the destination, but the more specific BGP route 10.1.1.0/25 takes precedence.",
+          "2": "The UDR for 10.1.1.0/24 matches but is less specific than the BGP route 10.1.1.0/25, so the BGP route is chosen."
+        }
+      },
+      "reference": {
+        "title": "Virtual network traffic routing - Azure Virtual Network",
+        "url": "https://docs.microsoft.com/en-us/azure/virtual-network/virtual-networks-udr-overview"
+      }
+    },
+    {
+      "id": 10,
+      "topic": "networking",
+      "module": "VPN & ExpressRoute",
+      "category": "ExpressRoute",
+      "type": "single",
+      "question": "Your company has an ExpressRoute circuit with Microsoft peering configured. Which Azure services can be accessed through Microsoft peering?",
+      "options": [
+        "Only virtual machines in virtual networks",
+        "Azure Storage, SQL Database, and Cosmos DB using public endpoints",
+        "Only services within the same region as the ExpressRoute circuit",
+        "All Azure services including those with private endpoints"
+      ],
+      "correct": 1,
+      "explanation": "Microsoft peering provides access to Azure PaaS services (Storage, SQL Database, Cosmos DB, etc.) using their public IP addresses. Private peering is for VNet resources, and private endpoints require private peering, not Microsoft peering.",
+      "reasoning": {
+        "correct": "Microsoft peering in ExpressRoute enables connectivity to Azure public services (PaaS) using their public IP address ranges. This includes services like Azure Storage, SQL Database, Cosmos DB, Office 365, and Dynamics 365. These services are accessed via their public endpoints but traffic flows over the private ExpressRoute connection instead of the public internet, providing better performance, reliability, and security.",
+        "why_others_wrong": {
+          "0": "Virtual machines in virtual networks are accessed through Private peering, not Microsoft peering. Microsoft peering is specifically for Azure public services.",
+          "2": "Microsoft peering provides access to Azure public services globally, not just in the same region as the ExpressRoute circuit. The routing is based on BGP advertisements from Microsoft.",
+          "3": "Private endpoints are accessed through Private peering, not Microsoft peering. Microsoft peering only provides access to public endpoints of Azure services."
+        }
+      },
+      "reference": {
+        "title": "ExpressRoute routing requirements - Azure ExpressRoute",
+        "url": "https://docs.microsoft.com/en-us/azure/expressroute/expressroute-routing"
+      }
+    },
+    {
+      "id": 11,
+      "topic": "networking",
+      "module": "Network Security",
+      "category": "Application Security Groups",
+      "type": "multiple",
+      "question": "You need to implement microsegmentation for a 3-tier application using Application Security Groups (ASGs). Which statements are correct? (Select all that apply)",
+      "options": [
+        "ASGs can be used as source or destination in NSG rules",
+        "A VM can be a member of multiple ASGs",
+        "ASGs work across different virtual networks",
+        "ASGs reduce the number of NSG rules needed",
+        "ASGs can contain IP addresses from on-premises networks"
+      ],
+      "correct": [0, 1, 3],
+      "explanation": "Correct: ASGs can be source/destination in NSG rules, VMs can belong to multiple ASGs, and they reduce NSG rule complexity. Incorrect: ASGs work only within a single VNet and cannot contain on-premises IPs.",
+      "reasoning": {
+        "correct": "Application Security Groups (ASGs) enable microsegmentation by allowing you to group VMs logically and reference these groups in NSG rules instead of using specific IP addresses. A VM can belong to multiple ASGs (e.g., WebTier, DatabaseAccess), enabling flexible security policies. ASGs significantly reduce NSG rule complexity because you can create rules like 'Allow WebTier to DatabaseTier on port 1433' instead of managing individual IP addresses.",
+        "why_others_wrong": {
+          "2": "ASGs are scoped to a single virtual network. They cannot span across multiple VNets. For cross-VNet scenarios, you need to use IP addresses, service tags, or other methods.",
+          "4": "ASGs can only contain Azure VMs within the same VNet. They cannot contain on-premises IP addresses or resources outside of Azure."
+        }
+      },
+      "reference": {
+        "title": "Application security groups - Azure Virtual Network",
+        "url": "https://docs.microsoft.com/en-us/azure/virtual-network/application-security-groups"
+      }
+    },
+    {
+      "id": 12,
+      "topic": "networking",
+      "module": "Virtual Networks",
+      "category": "Service Endpoints",
+      "type": "single",
+      "question": "You have enabled Azure Storage service endpoints on a subnet. A VM in this subnet is trying to access a storage account that has firewall rules allowing only the subnet. The access is failing. What is the most likely cause?",
+      "options": [
+        "Service endpoints are not enabled on the storage account",
+        "The storage account firewall is not configured to allow the virtual network",
+        "The VM needs a public IP address",
+        "NSG rules are blocking the traffic"
+      ],
+      "correct": 1,
+      "explanation": "Enabling service endpoints on the subnet is only half the configuration. The storage account's firewall must also be configured to allow access from the specific virtual network/subnet. Both sides of the configuration are required.",
+      "reasoning": {
+        "correct": "Service endpoints require configuration on both sides: the subnet (enable service endpoint) and the Azure service (configure firewall rules). Enabling the service endpoint on the subnet redirects traffic to the Azure service over the Microsoft backbone, but the service's firewall must explicitly allow the virtual network/subnet. Without both configurations, access will be denied even though the service endpoint is enabled.",
+        "why_others_wrong": {
+          "0": "Service endpoints are enabled on subnets, not on the storage account itself. The storage account has firewall rules, not service endpoint settings.",
+          "2": "Service endpoints work with private IP addresses. VMs do not need public IP addresses to access Azure services through service endpoints - that's the whole point of using service endpoints.",
+          "3": "While NSGs could block traffic, the scenario specifically mentions firewall rules on the storage account allowing only the subnet, suggesting the NSG configuration is not the primary issue."
+        }
+      },
+      "reference": {
+        "title": "Virtual Network service endpoints - Azure Virtual Network",
+        "url": "https://docs.microsoft.com/en-us/azure/virtual-network/virtual-network-service-endpoints-overview"
+      }
+    },
+    {
+      "id": 13,
+      "topic": "networking",
+      "module": "Load Balancing",
+      "category": "Traffic Manager",
+      "type": "single",
+      "question": "You are configuring Azure Traffic Manager for a global application with endpoints in East US, West Europe, and Southeast Asia. Users should be directed to the closest healthy endpoint. Which routing method should you use?",
+      "options": [
+        "Performance routing",
+        "Geographic routing",
+        "Weighted routing",
+        "Priority routing"
+      ],
+      "correct": 0,
+      "explanation": "Performance routing directs users to the endpoint with the lowest network latency from the user's location. This automatically routes users to the closest healthy endpoint based on network performance measurements.",
+      "reasoning": {
+        "correct": "Performance routing in Azure Traffic Manager uses latency measurements to direct users to the endpoint that provides the best network performance from their location. Traffic Manager maintains a latency table showing response times from different Azure regions to various internet locations, and uses this data to route users to the endpoint with the lowest latency, which typically corresponds to the geographically closest healthy endpoint.",
+        "why_others_wrong": {
+          "1": "Geographic routing routes users based on their geographic location to specific endpoints, but doesn't automatically choose the closest one - you manually map regions to endpoints.",
+          "2": "Weighted routing distributes traffic based on assigned weights (percentages) across endpoints, regardless of user location or performance considerations.",
+          "3": "Priority routing uses a primary endpoint and fails over to secondary endpoints only when the primary becomes unhealthy, regardless of user location or performance."
+        }
+      },
+      "reference": {
+        "title": "Traffic Manager routing methods - Azure Traffic Manager",
+        "url": "https://docs.microsoft.com/en-us/azure/traffic-manager/traffic-manager-routing-methods"
+      }
+    },
+    {
+      "id": 14,
+      "topic": "networking",
+      "module": "VPN & ExpressRoute",
+      "category": "Point-to-Site VPN",
+      "type": "multiple",
+      "question": "You are configuring Point-to-Site VPN for remote workers. Which authentication methods are supported by Azure VPN Gateway? (Select all that apply)",
+      "options": [
+        "Certificate-based authentication",
+        "Azure Active Directory authentication",
+        "RADIUS authentication",
+        "Username/password authentication",
+        "Smart card authentication"
+      ],
+      "correct": [0, 1, 2],
+      "explanation": "Azure VPN Gateway supports: Certificate-based authentication (using client certificates), Azure AD authentication (for OpenVPN protocol), and RADIUS authentication (for external authentication servers). Direct username/password and smart card authentication are not supported.",
+      "reasoning": {
+        "correct": "Azure VPN Gateway Point-to-Site connections support multiple authentication methods: Certificate-based authentication uses client certificates installed on user devices and is the most common method. Azure AD authentication integrates with OpenVPN protocol and leverages Azure AD for user authentication and conditional access policies. RADIUS authentication allows integration with external authentication servers for enterprise scenarios, enabling support for various authentication methods including multi-factor authentication.",
+        "why_others_wrong": {
+          "3": "Direct username/password authentication is not supported by Azure VPN Gateway for Point-to-Site connections. You need to use Azure AD authentication or RADIUS for credential-based authentication.",
+          "4": "Smart card authentication is not directly supported by Azure VPN Gateway. While smart cards might be used as part of a RADIUS authentication setup, they are not a native authentication method for P2S VPN."
+        }
+      },
+      "reference": {
+        "title": "About Point-to-Site VPN - Azure VPN Gateway",
+        "url": "https://docs.microsoft.com/en-us/azure/vpn-gateway/point-to-site-about"
+      }
+    },
+    {
+      "id": 15,
+      "topic": "networking",
+      "module": "DNS",
+      "category": "Private DNS Zones",
+      "type": "single",
+      "question": "You have created a private DNS zone 'contoso.local' and linked it to VNet1 with auto-registration enabled. When you create a VM in VNet1, it doesn't appear in the DNS zone. What is the most likely cause?",
+      "options": [
+        "The VM was created with a static private IP address",
+        "Auto-registration is only enabled, but resolution is disabled",
+        "The private DNS zone name conflicts with a public DNS zone",
+        "The VM is in a subnet that doesn't support auto-registration"
+      ],
+      "correct": 1,
+      "explanation": "For auto-registration to work, the VNet link must have both 'Enable auto registration' AND 'Enable DNS resolution' enabled. If only auto-registration is enabled without DNS resolution, VMs won't register their records.",
+      "reasoning": {
+        "correct": "Azure Private DNS zones require both auto-registration and DNS resolution to be enabled on the virtual network link for VMs to automatically register their DNS records. Auto-registration allows VMs to register their records, while DNS resolution allows the private DNS zone to resolve queries from the VNet. Both settings work together - auto-registration without DNS resolution will not function properly.",
+        "why_others_wrong": {
+          "0": "The IP address assignment method (static vs dynamic) doesn't affect auto-registration. Both static and dynamic IP addresses can be auto-registered in private DNS zones.",
+          "2": "Private DNS zone names can use any domain name, including ones that might exist publicly. The private zone takes precedence for resources within the linked VNet.",
+          "3": "Auto-registration works for all subnets within a linked VNet. There are no subnet-specific restrictions for auto-registration functionality."
+        }
+      },
+      "reference": {
+        "title": "Azure Private DNS zones - Azure DNS",
+        "url": "https://docs.microsoft.com/en-us/azure/dns/private-dns-overview"
+      }
+    },
+    {
+      "id": 16,
+      "topic": "networking",
+      "module": "Network Security",
+      "category": "DDoS Protection",
+      "type": "single",
+      "question": "Your public-facing application is experiencing a DDoS attack. You have DDoS Protection Standard enabled. What should you do to get detailed attack metrics and mitigation reports?",
+      "options": [
+        "Configure DDoS diagnostic logs in Azure Monitor",
+        "Enable NSG flow logs",
+        "Configure Azure Security Center",
+        "Enable Azure Firewall logs"
+      ],
+      "correct": 0,
+      "explanation": "DDoS Protection Standard provides detailed telemetry through DDoS diagnostic logs in Azure Monitor. These logs include attack metrics, mitigation reports, and flow information during DDoS attacks.",
+      "reasoning": {
+        "correct": "DDoS Protection Standard includes comprehensive telemetry and monitoring capabilities through Azure Monitor. DDoS diagnostic logs provide detailed information about attacks including attack vectors, mitigation actions taken, traffic patterns, and attack duration. These logs are essential for understanding attack patterns and improving defense strategies. The logs include DDoSProtectionNotifications, DDoSMitigationFlowLogs, and DDoSMitigationReports.",
+        "why_others_wrong": {
+          "1": "NSG flow logs show network traffic patterns but don't provide DDoS-specific attack metrics or mitigation details that DDoS Protection Standard generates.",
+          "2": "Azure Security Center provides security recommendations and alerts but doesn't provide the detailed DDoS attack telemetry that's available through DDoS diagnostic logs.",
+          "3": "Azure Firewall logs show firewall rule processing and traffic patterns but don't contain DDoS attack metrics or mitigation reports specific to DDoS Protection Standard."
+        }
+      },
+      "reference": {
+        "title": "Azure DDoS Protection Standard - Azure DDoS Protection",
+        "url": "https://docs.microsoft.com/en-us/azure/ddos-protection/ddos-protection-overview"
+      }
+    },
+    {
+      "id": 17,
+      "topic": "networking",
+      "module": "Application Gateway",
+      "category": "SSL/TLS",
+      "type": "single",
+      "question": "You need to configure SSL termination on Application Gateway and re-encrypt traffic to backend servers. The backend servers have different SSL certificates. What should you configure?",
+      "options": [
+        "SSL passthrough",
+        "End-to-end SSL encryption with multiple backend HTTP settings",
+        "SSL termination only",
+        "HTTP to HTTPS redirect"
+      ],
+      "correct": 1,
+      "explanation": "End-to-end SSL encryption allows SSL termination at Application Gateway and re-encryption to backends. Multiple backend HTTP settings are needed when backend servers have different certificates, each pointing to appropriate backend pools.",
+      "reasoning": {
+        "correct": "End-to-end SSL encryption with Application Gateway involves SSL termination at the gateway (decrypting client traffic) and then re-encrypting traffic to backend servers. When backend servers have different SSL certificates, you need multiple backend HTTP settings - each configured with the appropriate certificate details for its respective backend pool. This allows the Application Gateway to validate different backend certificates and establish secure connections to each backend server group.",
+        "why_others_wrong": {
+          "0": "SSL passthrough doesn't allow SSL termination at Application Gateway - traffic passes through encrypted end-to-end, preventing the gateway from inspecting or modifying traffic.",
+          "2": "SSL termination only decrypts traffic at the Application Gateway but sends unencrypted HTTP traffic to backends, which doesn't meet the requirement for re-encryption.",
+          "3": "HTTP to HTTPS redirect is a redirection feature and doesn't address the SSL termination and re-encryption requirements."
+        }
+      },
+      "reference": {
+        "title": "Application Gateway SSL termination and end-to-end SSL",
+        "url": "https://docs.microsoft.com/en-us/azure/application-gateway/ssl-overview"
+      }
+    },
+    {
+      "id": 18,
+      "topic": "networking",
+      "module": "Virtual Networks",
+      "category": "Network Virtual Appliances",
+      "type": "single",
+      "question": "You deployed a network virtual appliance (NVA) in a hub VNet to inspect traffic between spoke VNets. Traffic is not flowing through the NVA. What configuration is missing?",
+      "options": [
+        "IP forwarding must be enabled on the NVA's network interface",
+        "The NVA must have a public IP address",
+        "Route tables with custom routes directing traffic to the NVA",
+        "Both A and C are required"
+      ],
+      "correct": 3,
+      "explanation": "For an NVA to work: 1) IP forwarding must be enabled on the NVA's network interface to allow it to forward packets not destined for itself, and 2) Route tables with custom routes must direct traffic to the NVA.",
+      "reasoning": {
+        "correct": "Network Virtual Appliances require two critical configurations: First, IP forwarding must be enabled on the NVA's network interface because by default, Azure drops packets not destined for the VM's IP address. Second, custom route tables must be configured to direct traffic to the NVA - without these routes, traffic will follow default Azure routing and bypass the NVA entirely. Both configurations are mandatory for NVA functionality.",
+        "why_others_wrong": {
+          "1": "A public IP address is not required for an NVA to inspect inter-VNet traffic. NVAs can operate entirely with private IP addresses in hub-and-spoke architectures.",
+          "0": "While IP forwarding is necessary, it alone is insufficient - route tables are also required to direct traffic to the NVA.",
+          "2": "While route tables are necessary, they alone are insufficient - IP forwarding must also be enabled for the NVA to process and forward traffic."
+        }
+      },
+      "reference": {
+        "title": "Network virtual appliances in Azure",
+        "url": "https://docs.microsoft.com/en-us/azure/architecture/reference-architectures/dmz/nva-ha"
+      }
+    },
+    {
+      "id": 19,
+      "topic": "networking",
+      "module": "Load Balancing",
+      "category": "Cross-region Load Balancer",
+      "type": "single",
+      "question": "You need to load balance traffic across Azure regions for a critical application. Which solution provides the fastest failover with health checking?",
+      "options": [
+        "Azure Traffic Manager",
+        "Azure Front Door",
+        "Cross-region Load Balancer",
+        "Application Gateway v2"
+      ],
+      "correct": 1,
+      "explanation": "Azure Front Door provides the fastest failover (typically under 30 seconds) with built-in health probes and anycast networking. Traffic Manager uses DNS-based routing which has slower failover due to DNS caching.",
+      "reasoning": {
+        "correct": "Azure Front Door uses anycast networking and operates at the edge of Microsoft's global network, providing sub-30-second failover times. It continuously monitors backend health and can instantly redirect traffic to healthy endpoints. The anycast architecture ensures users connect to the nearest point of presence, minimizing latency and enabling rapid failover.",
+        "why_others_wrong": {
+          "0": "Azure Traffic Manager uses DNS-based routing with TTL values, typically resulting in 60-120 second failover times due to DNS caching. While reliable, it's slower than Front Door for critical applications requiring rapid failover.",
+          "2": "Cross-region Load Balancer is primarily for load balancing within Azure regions, not for global traffic distribution and failover across multiple regions.",
+          "3": "Application Gateway v2 operates within a single region and doesn't provide cross-region load balancing or global failover capabilities."
+        }
+      },
+      "reference": {
+        "title": "Azure Front Door overview",
+        "url": "https://docs.microsoft.com/en-us/azure/frontdoor/front-door-overview"
+      }
+    },
+    {
+      "id": 20,
+      "topic": "networking",
+      "module": "VPN & ExpressRoute",
+      "category": "ExpressRoute Global Reach",
+      "type": "single",
+      "question": "Your company has ExpressRoute circuits in East US and West Europe. You want to enable direct communication between on-premises locations through Azure's backbone. What should you configure?",
+      "options": [
+        "ExpressRoute Premium on both circuits",
+        "ExpressRoute Global Reach",
+        "VNet peering between the regions",
+        "Site-to-Site VPN between the circuits"
+      ],
+      "correct": 1,
+      "explanation": "ExpressRoute Global Reach enables direct connectivity between on-premises networks through Microsoft's global backbone, bypassing the public internet and virtual networks.",
+      "reasoning": {
+        "correct": "ExpressRoute Global Reach allows you to connect ExpressRoute circuits together to create a private network between your on-premises networks. Traffic flows directly through Microsoft's global backbone network without traversing the public internet or requiring virtual networks. This provides high bandwidth, low latency connectivity between geographically distributed on-premises locations.",
+        "why_others_wrong": {
+          "0": "ExpressRoute Premium provides access to global Azure services and increased route limits, but doesn't enable direct on-premises to on-premises connectivity between circuits.",
+          "2": "VNet peering connects virtual networks in Azure but doesn't provide direct on-premises to on-premises connectivity - traffic would need to route through Azure VNets.",
+          "3": "Site-to-Site VPN would route traffic over the public internet, not through Microsoft's private backbone, and wouldn't provide the performance and reliability of ExpressRoute."
+        }
+      },
+      "reference": {
+        "title": "ExpressRoute Global Reach overview",
+        "url": "https://docs.microsoft.com/en-us/azure/expressroute/expressroute-global-reach"
+      }
+    },
+    {
+      "id": 21,
+      "topic": "storage",
+      "module": "Storage Accounts",
+      "category": "Storage Accounts",
+      "type": "single",
+      "question": "You need to create a storage account that provides the highest durability for critical business data and allows read access from a secondary region. Which replication option should you choose?",
+      "options": [
+        "Locally Redundant Storage (LRS)",
+        "Zone-Redundant Storage (ZRS)",
+        "Geo-Redundant Storage (GRS)",
+        "Read-Access Geo-Redundant Storage (RA-GRS)"
+      ],
+      "correct": 3,
+    "explanation": "RA-GRS provides the highest durability by replicating data to a secondary region (like GRS) and additionally allows read access to the secondary region during normal operations, providing business continuity options.",
+    "reasoning": {
+        "correct": "RA-GRS provides 16 nines of durability (99.99999999999999%) by maintaining 6 copies of data: 3 in the primary region across fault domains and 3 in a geographically distant secondary region. Unlike GRS, RA-GRS allows read access to the secondary region during normal operations, enabling applications to read from the secondary region for load distribution and disaster recovery testing.",
+        "why_others_wrong": {
+            "0": "LRS only maintains 3 copies within a single datacenter in the primary region, providing 11 nines durability but no protection against datacenter or regional failures.",
+            "1": "ZRS maintains 3 copies across availability zones in the primary region, providing 12 nines durability but no protection against regional disasters and no secondary region access.",
+            "2": "GRS provides the same 16 nines durability as RA-GRS but doesn't allow read access to the secondary region during normal operations, limiting business continuity options."
+        }
+    },
+    "reference": {
+        "title": "Azure Storage redundancy - Azure Storage",
+        "url": "https://docs.microsoft.com/en-us/azure/storage/common/storage-redundancy"
+    }
+    },
+    {
+      "id": 22,
+      "topic": "storage",
+      "module": "Blob Storage",
+      "category": "Lifecycle Management",
+      "type": "multiple",
+      "question": "You are configuring lifecycle management for blob storage to optimize costs. Which actions can be performed automatically? (Select all that apply)",
+      "options": [
+        "Move blobs to Cool tier after 30 days",
+        "Move blobs to Archive tier after 90 days",
+        "Delete blobs after 365 days",
+        "Move blob snapshots to different tiers",
+        "Compress blobs automatically"
+      ],
+      "correct": [0, 1, 2, 3],
+      "explanation": "Lifecycle management can automatically: transition blobs between access tiers (Hot → Cool → Archive), delete blobs after specified periods, and manage blob snapshots. Automatic compression is not a lifecycle management feature.",
+      "reasoning": {
+        "correct": "Azure Blob Storage lifecycle management provides automated policy-based rules to transition blobs between access tiers (Hot, Cool, Archive) based on age or last access time, delete blobs after specified retention periods, and manage blob versions and snapshots. These policies help optimize storage costs by automatically moving data to more cost-effective tiers as it ages and becomes less frequently accessed.",
+        "why_others_wrong": {
+          "4": "Automatic compression is not a feature of Azure Blob Storage lifecycle management. Compression must be handled at the application level before uploading blobs to storage."
+        }
+      },
+      "reference": {
+        "title": "Manage the Azure Blob storage lifecycle",
+        "url": "https://docs.microsoft.com/en-us/azure/storage/blobs/storage-lifecycle-management-concepts"
+      }
+    },
+    {
+      "id": 23,
+      "topic": "storage",
+      "module": "Storage Security",
+      "category": "SAS Tokens",
+      "type": "single",
+      "question": "You need to provide a partner company temporary access to specific blobs in your storage account. The access should be limited to read operations for 7 days. What type of SAS should you create?",
+      "options": [
+        "Account SAS with full permissions",
+        "Service SAS with read permissions on blob service",
+        "User delegation SAS with read permissions",
+        "Stored access policy with service SAS"
+      ],
+      "correct": 2,
+      "explanation": "User delegation SAS is the most secure option as it uses Azure AD credentials instead of storage account keys. It provides fine-grained control and is recommended for external access scenarios.",
+      "reasoning": {
+        "correct": "User delegation SAS is the most secure form of SAS because it's secured with Azure AD credentials rather than the storage account key. This provides better security governance, supports Azure AD authentication and authorization, enables audit trails, and allows for more granular permission control. It's specifically recommended for scenarios involving external access to storage resources.",
+        "why_others_wrong": {
+          "0": "Account SAS with full permissions grants excessive access beyond the requirement and uses storage account keys which are less secure than Azure AD credentials.",
+          "1": "Service SAS uses storage account keys which are less secure than Azure AD credentials, and while it can be scoped to blob service, user delegation SAS is more secure for external access.",
+          "3": "Stored access policies provide centralized management but still rely on storage account keys rather than Azure AD credentials, making them less secure for external scenarios."
+        }
+      },
+      "reference": {
+        "title": "Create a user delegation SAS for a blob with .NET",
+        "url": "https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blob-user-delegation-sas-create-dotnet"
+      }
+    },
+    {
+      "id": 24,
+      "topic": "compute",
+      "module": "Virtual Machines",
+      "category": "Availability",
+      "type": "single",
+      "question": "You need to deploy VMs that can tolerate a complete datacenter failure within an Azure region. The VMs should be distributed across physical locations. What should you configure?",
+      "options": [
+        "Availability Set with 3 fault domains",
+        "Availability Zones across zones 1, 2, and 3",
+        "Virtual Machine Scale Set with zone balancing",
+        "Both B and C provide the required protection"
+      ],
+      "correct": 3,
+      "explanation": "Both Availability Zones and VMSS with zone balancing protect against datacenter failures. Availability Zones distribute VMs across physically separate datacenters, and VMSS with zone balancing automatically distributes instances across zones.",
+      "reasoning": {
+        "correct": "Both Availability Zones and Virtual Machine Scale Sets with zone balancing provide protection against complete datacenter failures within a region. Availability Zones are physically separate datacenters with independent power, cooling, and networking. VMSS with zone balancing automatically distributes VM instances across multiple zones, providing the same datacenter-level fault tolerance with added scaling capabilities.",
+        "why_others_wrong": {
+          "0": "Availability Sets only protect against hardware failures within a single datacenter (fault domains and update domains) but don't protect against complete datacenter failures.",
+          "1": "While this provides the required protection, it's not the complete answer since VMSS with zone balancing also provides the same protection.",
+          "2": "While this provides the required protection, it's not the complete answer since individual VMs in Availability Zones also provide the same protection."
+        }
+      },
+      "reference": {
+        "title": "Availability options for Azure Virtual Machines",
+        "url": "https://docs.microsoft.com/en-us/azure/virtual-machines/availability"
+      }
+    },
+    {
+      "id": 25,
+      "topic": "compute",
+      "module": "VM Extensions",
+      "category": "Custom Script Extension",
+      "type": "single",
+      "question": "You need to automatically install software on Windows VMs after deployment. The installation requires a reboot. Which approach should you use?",
+      "options": [
+        "Custom Script Extension with a single script",
+        "PowerShell DSC Extension",
+        "Custom Script Extension with restart handling in the script",
+        "Both B and C can handle reboots properly"
+      ],
+      "correct": 3,
+      "explanation": "Both PowerShell DSC Extension and Custom Script Extension with proper restart handling can manage reboots. DSC is designed for configuration management and handles reboots gracefully, while Custom Script Extension can include restart logic.",
+      "reasoning": {
+        "correct": "PowerShell DSC Extension is specifically designed for configuration management and includes built-in capabilities to handle reboots during configuration application. Custom Script Extension can also handle reboots when the script includes proper restart logic using commands like 'Restart-Computer -Force' and continuation mechanisms. Both approaches can successfully manage post-deployment software installation requiring reboots.",
+        "why_others_wrong": {
+          "0": "A single script in Custom Script Extension without restart handling cannot properly manage installations requiring reboots, as the extension execution will terminate when the VM restarts.",
+          "1": "While PowerShell DSC Extension can handle reboots, this is not the complete answer since Custom Script Extension with restart handling can also manage reboots.",
+          "2": "While Custom Script Extension with restart handling can manage reboots, this is not the complete answer since PowerShell DSC Extension also provides this capability."
+        }
+      },
+      "reference": {
+        "title": "Virtual machine extensions and features for Windows",
+        "url": "https://docs.microsoft.com/en-us/azure/virtual-machines/extensions/features-windows"
+      }
+    },
+    {
+      "id": 26,
+      "topic": "identity",
+      "module": "Azure AD",
+      "category": "Self-Service Password Reset",
+      "type": "multiple",
+      "question": "You are configuring Self-Service Password Reset (SSPR) for your organization. Which authentication methods are supported? (Select all that apply)",
+      "options": [
+        "Mobile phone (SMS or voice call)",
+        "Email address",
+        "Security questions",
+        "Microsoft Authenticator app",
+        "Hardware security key"
+      ],
+      "correct": [0, 1, 2, 3],
+      "explanation": "SSPR supports: mobile phone (SMS/voice), email, security questions, and authenticator apps including Microsoft Authenticator. Hardware security keys (FIDO2) are not supported for SSPR, only for sign-in.",
+      "reasoning": {
+        "correct": "Azure AD Self-Service Password Reset supports multiple authentication methods to verify user identity: mobile phone verification via SMS or voice call, alternate email address verification, security questions (customizable by organization), and authenticator apps including Microsoft Authenticator that can generate verification codes or send push notifications. These methods provide users with flexible options to reset their passwords securely.",
+        "why_others_wrong": {
+          "4": "Hardware security keys (FIDO2) are supported for passwordless sign-in to Azure AD but are not supported as an authentication method for Self-Service Password Reset. SSPR requires methods that can be used when users have forgotten their passwords."
+        }
+      },
+      "reference": {
+        "title": "Authentication methods for Azure AD SSPR",
+        "url": "https://docs.microsoft.com/en-us/azure/active-directory/authentication/concept-authentication-methods"
+      }
+    },
+    {
+      "id": 27,
+      "topic": "identity",
+      "module": "RBAC",
+      "category": "Custom Roles",
+      "type": "single",
+      "question": "You need to create a custom role that allows users to start/stop VMs but not create, delete, or modify VM configurations. Which permissions should be included?",
+      "options": [
+        "Microsoft.Compute/virtualMachines/* (all VM actions)",
+        "Microsoft.Compute/virtualMachines/start/action and Microsoft.Compute/virtualMachines/powerOff/action",
+        "Microsoft.Compute/virtualMachines/read, */start/action, */powerOff/action, and */restart/action",
+        "Virtual Machine Contributor role permissions"
+      ],
+      "correct": 2,
+      "explanation": "The custom role needs: read permission to view VMs, and specific action permissions for start, powerOff, and restart. Using /* would grant too many permissions including create/delete/modify capabilities.",
+      "reasoning": {
+        "correct": "A properly scoped custom role for VM power management requires: Microsoft.Compute/virtualMachines/read (to view VMs in the portal and get their status), Microsoft.Compute/virtualMachines/start/action (to start stopped VMs), Microsoft.Compute/virtualMachines/powerOff/action (to power off running VMs), and Microsoft.Compute/virtualMachines/restart/action (to restart VMs). This follows the principle of least privilege by granting only the minimum permissions required.",
+        "why_others_wrong": {
+          "0": "Using Microsoft.Compute/virtualMachines/* grants all VM permissions including create, delete, modify configurations, and manage disks - far more than required and violating least privilege principle.",
+          "1": "This lacks the read permission needed to view VMs in the portal and the restart action. Users wouldn't be able to see VM status or restart VMs.",
+          "3": "Virtual Machine Contributor role includes full VM management permissions including create, delete, and modify operations - much more than the requirement for just power management."
+        }
+      },
+      "reference": {
+        "title": "Azure custom roles - Azure RBAC",
+        "url": "https://docs.microsoft.com/en-us/azure/role-based-access-control/custom-roles"
+      }
+    },
+    {
+      "id": 28,
+      "topic": "monitoring",
+      "module": "Azure Monitor",
+      "category": "Alerts",
+      "type": "single",
+      "question": "You need to create an alert that triggers when VM CPU usage exceeds 80% for more than 5 minutes, but only during business hours (9 AM - 5 PM). How should you configure this?",
+      "options": [
+        "Create a metric alert with time-based condition",
+        "Create a metric alert and use action groups with suppression rules",
+        "Create a log search alert with time-based KQL query",
+        "Create a metric alert and configure alert processing rules for time-based suppression"
+      ],
+      "correct": 3,
+      "explanation": "Create a standard metric alert for CPU > 80% for 5 minutes, then use alert processing rules to suppress notifications outside business hours. This provides the most flexible and manageable approach.",
+      "reasoning": {
+        "correct": "Alert processing rules provide the most flexible and maintainable approach for time-based alert suppression. You create a standard metric alert for the CPU condition, then apply alert processing rules to suppress notifications outside business hours. This separation of concerns allows easy modification of notification schedules without changing the core alert logic, and supports complex scheduling scenarios including holidays and maintenance windows.",
+        "why_others_wrong": {
+          "0": "Metric alerts don't have built-in time-based conditions for suppressing notifications based on business hours. They evaluate continuously based on metric thresholds.",
+          "1": "Action groups with suppression rules don't provide time-based suppression capabilities. Suppression rules are designed for different scenarios like maintenance windows, not recurring time-based schedules.",
+          "2": "While KQL queries can include time-based logic, this adds unnecessary complexity to the alert condition when the requirement is simply to suppress notifications during specific hours, not to change when the alert evaluates."
+        }
+      },
+      "reference": {
+        "title": "Alert processing rules in Azure Monitor",
+        "url": "https://docs.microsoft.com/en-us/azure/azure-monitor/alerts/alerts-processing-rules"
+      }
+    },
+    {
+      "id": 29,
+      "topic": "monitoring",
+      "module": "Backup",
+      "category": "VM Backup",
+      "type": "single",
+      "question": "You need to backup VMs that have both OS and data disks, with the ability to restore individual files and perform application-consistent backups. What should you configure?",
+      "options": [
+        "Azure Backup with snapshot-only policy",
+        "Azure Backup with file-system consistent backup",
+        "Azure Backup with application-consistent backup and install VM agent",
+        "Azure Site Recovery for continuous replication"
+      ],
+      "correct": 2,
+      "explanation": "Azure Backup with application-consistent backup and VM agent provides: full VM backup including all disks, application-consistent snapshots (using VSS), and file-level restore capabilities through the agent.",
+      "reasoning": {
+        "correct": "Azure Backup with application-consistent backup and VM agent provides comprehensive protection: it backs up both OS and data disks, uses Volume Shadow Copy Service (VSS) to ensure application-consistent snapshots where applications flush their buffers and quiesce I/O operations, and the VM agent enables file-level restore capabilities allowing recovery of individual files without restoring the entire VM. This combination meets all requirements in the question.",
+        "why_others_wrong": {
+          "0": "Snapshot-only policy doesn't provide application consistency or file-level restore capabilities. It creates crash-consistent point-in-time snapshots but lacks the VM agent integration needed for file recovery.",
+          "1": "File-system consistent backup ensures file system consistency but doesn't provide application-level consistency (applications may have uncommitted transactions) and may not include file-level restore capabilities.",
+          "3": "Azure Site Recovery is designed for disaster recovery and business continuity with continuous replication, but it's not primarily a backup solution and doesn't provide the file-level restore capabilities described in the requirements."
+        }
+      },
+      "reference": {
+        "title": "Azure VM backup overview",
+        "url": "https://docs.microsoft.com/en-us/azure/backup/backup-azure-vms-introduction"
+      }
+    },
+    {
+      "id": 30,
+      "topic": "networking",
+      "module": "Virtual Networks",
+      "category": "NAT Gateway",
+      "type": "single",
+      "question": "You have multiple VMs in a subnet that need outbound internet access with a consistent public IP address. The VMs should not be directly accessible from the internet. What should you implement?",
+      "options": [
+        "Assign public IP addresses to each VM",
+        "Use Azure Load Balancer with outbound rules",
+        "Deploy Azure NAT Gateway and associate it with the subnet",
+        "Use Azure Firewall for outbound traffic"
+      ],
+      "correct": 2,
+      "explanation": "Azure NAT Gateway provides outbound internet connectivity with consistent public IP addresses while keeping VMs private. It's the most cost-effective solution for this scenario compared to Azure Firewall or Load Balancer outbound rules.",
+      "reasoning": {
+        "correct": "Azure NAT Gateway is specifically designed for outbound internet connectivity scenarios. It provides a consistent public IP address for all outbound traffic from the subnet while keeping VMs completely private (no inbound access from internet). It's zone-redundant, supports up to 64,000 concurrent connections, and offers predictable performance. For simple outbound internet access requirements, it's more cost-effective than Azure Firewall and simpler to configure than Load Balancer outbound rules.",
+        "why_others_wrong": {
+          "0": "Assigning public IP addresses to each VM makes them directly accessible from the internet, violating the requirement for private VMs. It also doesn't provide a consistent IP address for outbound traffic.",
+          "1": "Azure Load Balancer with outbound rules can provide consistent outbound IP addresses, but it's more complex to configure and typically more expensive than NAT Gateway for simple outbound-only scenarios.",
+          "3": "Azure Firewall can provide outbound connectivity with consistent IP addresses, but it's significantly more expensive than NAT Gateway and includes many features (like application-layer filtering) that aren't needed for simple outbound internet access."
+        }
+      },
+      "reference": {
+        "title": "Azure NAT Gateway overview",
+        "url": "https://docs.microsoft.com/en-us/azure/virtual-network/nat-overview"
+      }
+    }
+      ]
+    },
+    "az-305": {
+      "id": "az-305",
+      "title": "Azure AZ-305 Practice Exam",
+      "description": "Microsoft Certified: Azure Solutions Architect Expert",
+      "totalQuestions": 150,
+      "topics": [
+        {
+          "id": "identity",
+          "name": "Design identity, governance, and monitoring solutions",
+          "modules": ["Azure AD", "Governance", "Monitoring"]
+        },
+        {
+          "id": "data-storage",
+          "name": "Design data storage solutions",
+          "modules": ["Storage Accounts", "Databases", "Data Integration"]
+        },
+        {
+          "id": "business-continuity",
+          "name": "Design business continuity solutions",
+          "modules": ["Backup", "Disaster Recovery", "High Availability"]
+        },
+        {
+          "id": "infrastructure",
+          "name": "Design infrastructure solutions",
+          "modules": ["Compute", "Networking", "Migration"]
+        }
+      ],
+      "questions": [
+        {
+          "id": 1,
+          "topic": "infrastructure",
+          "module": "Compute",
+          "category": "Architecture Design",
+          "type": "single",
+          "question": "You are designing a multi-tier application architecture for Azure. The application requires high availability, scalability, and cost optimization. Which compute service combination would you recommend?",
+          "options": [
+            "Azure Virtual Machines with Availability Sets",
+            "Azure App Service with Azure Functions for background processing",
+            "Azure Container Instances with Azure Kubernetes Service",
+            "Azure Virtual Machine Scale Sets with Azure Load Balancer"
+          ],
+          "correct": 1,
+          "explanation": "Azure App Service provides built-in high availability, auto-scaling, and cost optimization through consumption-based pricing for Azure Functions, making it ideal for multi-tier applications.",
+          "reasoning": {
+            "correct": "Azure App Service provides built-in high availability across zones, automatic scaling based on demand, and managed platform services that reduce operational overhead. Combined with Azure Functions for background processing, this offers consumption-based pricing where you only pay for actual execution time, providing excellent cost optimization. The platform handles infrastructure management, patching, and scaling automatically.",
+            "why_others_wrong": {
+              "0": "Azure VMs with Availability Sets provide high availability but require manual scaling configuration and constant compute costs regardless of actual usage, making them less cost-effective for variable workloads.",
+              "2": "While containerized, Azure Container Instances don't provide built-in high availability and auto-scaling like App Service. AKS adds complexity and management overhead that may not be necessary for a multi-tier application.",
+              "3": "VMSS with Load Balancer provides good availability and scaling but still requires infrastructure management and doesn't offer the cost optimization of consumption-based pricing."
+            }
+          },
+          "reference": {
+            "title": "Azure App Service overview",
+            "url": "https://docs.microsoft.com/en-us/azure/app-service/overview"
+          }
+        }
+      ]
+    },
+    "ai-900": {
+      "id": "ai-900",
+      "title": "Azure AI-900 Practice Exam", 
+      "description": "Microsoft Certified: Azure AI Fundamentals",
+      "totalQuestions": 100,
+      "topics": [
+        {
+          "id": "ai-workloads",
+          "name": "Describe Artificial Intelligence workloads and considerations",
+          "modules": ["AI Concepts", "Responsible AI"]
+        },
+        {
+          "id": "machine-learning",
+          "name": "Describe fundamental principles of machine learning on Azure",
+          "modules": ["Azure Machine Learning", "Automated ML"]
+        },
+        {
+          "id": "computer-vision",
+          "name": "Describe features of computer vision workloads on Azure",
+          "modules": ["Computer Vision", "Custom Vision", "Face API"]
+        },
+        {
+          "id": "nlp",
+          "name": "Describe features of Natural Language Processing workloads on Azure",
+          "modules": ["Text Analytics", "Language Understanding", "Speech Services"]
+        }
+      ],
+      "questions": [
+        {
+          "id": 1,
+          "topic": "ai-workloads",
+          "module": "AI Concepts",
+          "category": "AI Fundamentals",
+          "type": "single",
+          "question": "Which type of machine learning is used when you want to predict a numerical value based on historical data?",
+          "options": [
+            "Classification",
+            "Regression", 
+            "Clustering",
+            "Reinforcement Learning"
+          ],
+          "correct": 1,
+          "explanation": "Regression is used to predict continuous numerical values based on historical data, such as predicting house prices or sales figures.",
+          "reasoning": {
+            "correct": "Regression analysis is specifically designed to predict continuous numerical values by establishing relationships between input features and target values using historical data. It creates mathematical models that can predict outcomes like house prices, stock values, temperature, or sales figures based on patterns learned from past data points.",
+            "why_others_wrong": {
+              "0": "Classification is used to predict discrete categories or classes (like spam/not spam, disease/no disease) rather than continuous numerical values.",
+              "2": "Clustering is an unsupervised learning technique used to group similar data points together, not to predict numerical values based on historical data.",
+              "3": "Reinforcement Learning involves training agents to make decisions through trial and error using rewards and penalties, not predicting numerical values from historical data."
+            }
+          },
+          "reference": {
+            "title": "Introduction to machine learning - Azure Machine Learning",
+            "url": "https://docs.microsoft.com/en-us/azure/machine-learning/concept-ml-pipelines"
+          }
+        }
+      ]
+    }
+  }
+}
