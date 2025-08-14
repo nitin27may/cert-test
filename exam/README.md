@@ -34,3 +34,12 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+
+
+```
+please use the attached files and update #file:exams.json  with additionlal questions, please add atleast 200 questions in each exam, also please make sure that in az-104 and az-305 there are at least 50% networking related quyestions.
+
+Please refer the #file:types.ts  to add all properties in each questions.
+```\
