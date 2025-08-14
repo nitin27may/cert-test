@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useExamData } from '@/hooks/useExamData';
 import { Question } from '@/lib/types';
+import Header from '@/components/Header';
+import { sessionManager } from '@/lib/auth/session';
 
 interface ExamConfig {
   selectedTopics: string[];
@@ -33,7 +35,7 @@ export default function ExamPracticePage() {
 
   const { exam, questions, loading: isLoading, error } = useExamData(examId, questionCount);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [userAnswers, setUserAnswers] = useState<Record<number, number>>({});
+  const [userAnswers, setUserAnswers] = useState<Record<number, number | number[]>>({});
   const [showExplanation, setShowExplanation] = useState(false);
   const [checkedAnswers, setCheckedAnswers] = useState<Record<number, boolean>>({});
   const [timeRemaining, setTimeRemaining] = useState(0);
@@ -80,10 +82,36 @@ export default function ExamPracticePage() {
   const handleAnswerSelect = (answerIndex: number) => {
     if (showExplanation) return;
     
-    setUserAnswers(prev => ({
-      ...prev,
-      [currentQuestionIndex]: answerIndex
-    }));
+    const currentQuestion = questions[currentQuestionIndex];
+    
+    setUserAnswers(prev => {
+      if (currentQuestion.type === 'multiple') {
+        // Handle multiple selection
+        const currentAnswers = prev[currentQuestionIndex] as number[] || [];
+        const isSelected = currentAnswers.includes(answerIndex);
+        
+        if (isSelected) {
+          // Remove from selection
+          const newAnswers = currentAnswers.filter(idx => idx !== answerIndex);
+          return {
+            ...prev,
+            [currentQuestionIndex]: newAnswers.length > 0 ? newAnswers : []
+          };
+        } else {
+          // Add to selection
+          return {
+            ...prev,
+            [currentQuestionIndex]: [...currentAnswers, answerIndex]
+          };
+        }
+      } else {
+        // Handle single selection
+        return {
+          ...prev,
+          [currentQuestionIndex]: answerIndex
+        };
+      }
+    });
   };
 
   const handleNext = () => {
@@ -110,16 +138,30 @@ export default function ExamPracticePage() {
 
   const handlePauseTest = () => {
     if (confirm('Are you sure you want to pause this test? Your progress will be saved.')) {
+      // Calculate progress percentage
+      const progressPercentage = Math.round((currentQuestionIndex / questions.length) * 100);
+      
       // Save current progress
       const progress = {
         currentQuestionIndex,
         userAnswers,
         checkedAnswers,
         timeRemaining,
-        pausedAt: Date.now()
+        pausedAt: Date.now(),
+        status: 'in-progress',
+        progress: progressPercentage > 0 ? progressPercentage : 1, // Minimum 1% to show as in-progress
+        examId: examId,
+        examTitle: exam?.title || '',
+        questions: questions.map(q => q.id) // Store question IDs for resuming
       };
+      
+      // Save to sessionStorage for immediate restoration
       sessionStorage.setItem(`exam-progress-${examId}`, JSON.stringify(progress));
-      router.push('/');
+      
+      // Save to user data through sessionManager for dashboard tracking
+      sessionManager.updateExamProgress(examId, progress);
+      
+      router.push('/dashboard');
     }
   };
 
@@ -130,7 +172,20 @@ export default function ExamPracticePage() {
     if (!hasAnswer) return 'unanswered';
     if (!isChecked) return 'answered';
     
-    const isCorrect = userAnswers[questionIndex] === questions[questionIndex].correct;
+    const userAnswer = userAnswers[questionIndex];
+    const question = questions[questionIndex];
+    const correctAnswers = Array.isArray(question.correct) ? question.correct : [question.correct];
+    
+    let isCorrect = false;
+    if (question.type === 'multiple') {
+      const userAnswerArray = Array.isArray(userAnswer) ? userAnswer : [];
+      // Check if user selected exactly the correct answers
+      isCorrect = userAnswerArray.length === correctAnswers.length &&
+                  userAnswerArray.every(ans => correctAnswers.includes(ans));
+    } else {
+      isCorrect = userAnswer === question.correct;
+    }
+    
     return isCorrect ? 'correct' : 'incorrect';
   };
 
@@ -138,8 +193,22 @@ export default function ExamPracticePage() {
     // Calculate score
     let correctAnswers = 0;
     questions.forEach((question, index) => {
-      if (userAnswers[index] === question.correct) {
-        correctAnswers++;
+      const userAnswer = userAnswers[index];
+      const correctAnswer = question.correct;
+      
+      if (question.type === 'multiple') {
+        const userAnswerArray = Array.isArray(userAnswer) ? userAnswer : [];
+        const correctAnswersArray = Array.isArray(correctAnswer) ? correctAnswer : [correctAnswer];
+        
+        // Check if user selected exactly the correct answers
+        if (userAnswerArray.length === correctAnswersArray.length &&
+            userAnswerArray.every(ans => correctAnswersArray.includes(ans))) {
+          correctAnswers++;
+        }
+      } else {
+        if (userAnswer === correctAnswer) {
+          correctAnswers++;
+        }
       }
     });
 
@@ -152,28 +221,51 @@ export default function ExamPracticePage() {
       correctAnswers,
       totalQuestions: questions.length,
       timeSpent: config ? (config.timeLimit * 60 - timeRemaining) : 0,
-      answers: userAnswers
+      answers: userAnswers,
+      completedAt: new Date().toISOString(),
+      title: exam?.title || ''
     };
     
     sessionStorage.setItem(`exam-results-${examId}`, JSON.stringify(results));
     
+    // Update exam progress to completed (100%)
+    const completedProgress = {
+      status: 'completed',
+      progress: 100,
+      score: score,
+      correctAnswers: correctAnswers,
+      totalQuestions: questions.length,
+      completedAt: new Date().toISOString(),
+      examId: examId,
+      examTitle: exam?.title || ''
+    };
+    
+    sessionManager.updateExamProgress(examId, completedProgress);
+    
+    // Add to exam history
+    sessionManager.addExamToHistory(results);
+    
+    // Clear sessionStorage for this exam
+    sessionStorage.removeItem(`exam-progress-${examId}`);
+    sessionStorage.removeItem(`exam-config-${examId}`);
+    
     // Navigate to results page (you can create this later)
     alert(`Exam completed! Score: ${score}% (${correctAnswers}/${questions.length})`);
-    router.push('/');
+    router.push('/dashboard');
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading exam...</div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-lg text-gray-900 dark:text-white">Loading exam...</div>
       </div>
     );
   }
 
   if (!exam || questions.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">No questions available</div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-lg text-gray-900 dark:text-white">No questions available</div>
       </div>
     );
   }
@@ -182,14 +274,15 @@ export default function ExamPracticePage() {
   const userAnswer = userAnswers[currentQuestionIndex];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+      <Header />
       <div className="max-w-4xl mx-auto p-4">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6 border border-gray-100 dark:border-gray-700">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">{exam.title}</h1>
-              <p className="text-gray-600">
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">{exam.title}</h1>
+              <p className="text-gray-600 dark:text-gray-300">
                 Question {currentQuestionIndex + 1} of {questions.length}
               </p>
             </div>
@@ -201,17 +294,17 @@ export default function ExamPracticePage() {
                 Pause Test
               </button>
               <div className="text-right">
-                <div className="text-lg font-semibold text-gray-900">
+                <div className="text-lg font-semibold text-gray-900 dark:text-white">
                   {formatTime(timeRemaining)}
                 </div>
-                <div className="text-sm text-gray-600">Time Remaining</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Time Remaining</div>
               </div>
             </div>
           </div>
           
           {/* Progress Bar */}
           <div className="mt-4">
-            <div className="bg-gray-200 rounded-full h-2">
+            <div className="bg-gray-200 dark:bg-gray-700 rounded-full h-2">
               <div 
                 className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
@@ -224,38 +317,59 @@ export default function ExamPracticePage() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Question Content */}
           <div className="lg:col-span-3">
-            <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6 border border-gray-100 dark:border-gray-700">
               <div className="mb-4">
-                <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                <span className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs px-2 py-1 rounded-full">
                   {currentQuestion.topic}
                 </span>
               </div>
               
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
                 {currentQuestion.question}
               </h2>
 
+              {/* Question type indicator */}
+              <div className="mb-4 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                <p className="text-sm text-blue-800 dark:text-blue-300">
+                  {currentQuestion.type === 'multiple' 
+                    ? '📝 Select all correct answers (multiple selection)' 
+                    : '🔘 Select one answer (single selection)'
+                  }
+                </p>
+              </div>
+
               <div className="space-y-3">
                 {currentQuestion.options.map((option, index) => {
-                  const isSelected = userAnswer === index;
-                  const isCorrect = index === currentQuestion.correct;
+                  const userAnswer = userAnswers[currentQuestionIndex];
+                  const correctAnswers = Array.isArray(currentQuestion.correct) 
+                    ? currentQuestion.correct 
+                    : [currentQuestion.correct];
+                  
+                  let isSelected = false;
+                  if (currentQuestion.type === 'multiple') {
+                    isSelected = Array.isArray(userAnswer) && userAnswer.includes(index);
+                  } else {
+                    isSelected = userAnswer === index;
+                  }
+                  
+                  const isCorrect = correctAnswers.includes(index);
                   const showResult = showExplanation;
                   
                   let buttonClass = "w-full text-left p-4 border rounded-lg transition-colors ";
                   
                   if (showResult) {
                     if (isCorrect) {
-                      buttonClass += "bg-green-100 border-green-500 text-green-800";
+                      buttonClass += "bg-green-100 dark:bg-green-900/30 border-green-500 dark:border-green-600 text-green-800 dark:text-green-300";
                     } else if (isSelected && !isCorrect) {
-                      buttonClass += "bg-red-100 border-red-500 text-red-800";
+                      buttonClass += "bg-red-100 dark:bg-red-900/30 border-red-500 dark:border-red-600 text-red-800 dark:text-red-300";
                     } else {
-                      buttonClass += "bg-gray-50 border-gray-200 text-gray-600";
+                      buttonClass += "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400";
                     }
                   } else {
                     if (isSelected) {
-                      buttonClass += "bg-blue-100 border-blue-500 text-blue-800";
+                      buttonClass += "bg-blue-100 dark:bg-blue-900/30 border-blue-500 dark:border-blue-600 text-blue-800 dark:text-blue-300";
                     } else {
-                      buttonClass += "bg-white border-gray-200 text-gray-900 hover:bg-gray-50";
+                      buttonClass += "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700";
                     }
                   }
 
@@ -265,10 +379,25 @@ export default function ExamPracticePage() {
                       onClick={() => handleAnswerSelect(index)}
                       className={buttonClass}
                     >
-                      <span className="font-medium mr-2">
-                        {String.fromCharCode(65 + index)}.
-                      </span>
-                      {option}
+                      <div className="flex items-center">
+                        {currentQuestion.type === 'multiple' ? (
+                          <div className={`w-4 h-4 mr-3 border-2 rounded ${isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300 dark:border-gray-600'} flex items-center justify-center`}>
+                            {isSelected && (
+                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                          </div>
+                        ) : (
+                          <div className={`w-4 h-4 mr-3 border-2 rounded-full ${isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300 dark:border-gray-600'} flex items-center justify-center`}>
+                            {isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                          </div>
+                        )}
+                        <span className="font-medium mr-2">
+                          {String.fromCharCode(65 + index)}.
+                        </span>
+                        <span className="flex-1">{option}</span>
+                      </div>
                     </button>
                   );
                 })}
@@ -276,21 +405,21 @@ export default function ExamPracticePage() {
 
               {/* Explanation */}
               {showExplanation && (
-                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h3 className="font-semibold text-blue-900 mb-2">Explanation:</h3>
-                  <p className="text-blue-800 mb-4">{currentQuestion.explanation}</p>
+                <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                  <h3 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">Explanation:</h3>
+                  <p className="text-blue-800 dark:text-blue-300 mb-4">{currentQuestion.explanation}</p>
                   
                   <div className="text-sm">
-                    <div className="font-semibold text-green-800 mb-2">
+                    <div className="font-semibold text-green-800 dark:text-green-300 mb-2">
                       Why this is correct:
                     </div>
-                    <p className="text-green-700 mb-4">{currentQuestion.reasoning.correct}</p>
+                    <p className="text-green-700 dark:text-green-400 mb-4">{currentQuestion.reasoning.correct}</p>
                     
-                    <div className="font-semibold text-red-800 mb-2">
+                    <div className="font-semibold text-red-800 dark:text-red-300 mb-2">
                       Why other options are wrong:
                     </div>
                     {Object.entries(currentQuestion.reasoning.why_others_wrong).map(([key, reason]) => (
-                      <div key={key} className="text-red-700 mb-2">
+                      <div key={key} className="text-red-700 dark:text-red-400 mb-2">
                         <span className="font-medium">
                           {String.fromCharCode(65 + parseInt(key))}.
                         </span> {reason}
@@ -302,12 +431,12 @@ export default function ExamPracticePage() {
             </div>
 
             {/* Navigation */}
-            <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-100 dark:border-gray-700">
               <div className="flex justify-between items-center">
                 <button
                   onClick={handlePrevious}
                   disabled={currentQuestionIndex === 0}
-                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Previous
                 </button>
@@ -344,8 +473,8 @@ export default function ExamPracticePage() {
 
           {/* Question Summary Sidebar */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-lg p-6 sticky top-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Question Overview</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 sticky top-6 border border-gray-100 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Question Overview</h3>
               
               {/* Question Dots Grid */}
               <div className="grid grid-cols-5 gap-2 mb-4">
@@ -370,7 +499,7 @@ export default function ExamPracticePage() {
                       dotClass += "bg-yellow-500 text-white";
                       break;
                     case 'unanswered':
-                      dotClass += "bg-gray-200 text-gray-600 hover:bg-gray-300";
+                      dotClass += "bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-500";
                       break;
                   }
 
@@ -394,25 +523,25 @@ export default function ExamPracticePage() {
               <div className="space-y-2 text-sm">
                 <div className="flex items-center">
                   <div className="w-4 h-4 bg-green-500 rounded-full mr-2"></div>
-                  <span>Correct</span>
+                  <span className="text-gray-900 dark:text-white">Correct</span>
                 </div>
                 <div className="flex items-center">
                   <div className="w-4 h-4 bg-red-500 rounded-full mr-2"></div>
-                  <span>Incorrect</span>
+                  <span className="text-gray-900 dark:text-white">Incorrect</span>
                 </div>
                 <div className="flex items-center">
                   <div className="w-4 h-4 bg-yellow-500 rounded-full mr-2"></div>
-                  <span>Answered</span>
+                  <span className="text-gray-900 dark:text-white">Answered</span>
                 </div>
                 <div className="flex items-center">
-                  <div className="w-4 h-4 bg-gray-200 rounded-full mr-2"></div>
-                  <span>Unanswered</span>
+                  <div className="w-4 h-4 bg-gray-200 dark:bg-gray-600 rounded-full mr-2"></div>
+                  <span className="text-gray-900 dark:text-white">Unanswered</span>
                 </div>
               </div>
 
               {/* Progress Stats */}
-              <div className="mt-6 pt-4 border-t border-gray-200">
-                <div className="text-sm text-gray-600">
+              <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
+                <div className="text-sm text-gray-600 dark:text-gray-300">
                   <div className="flex justify-between mb-1">
                     <span>Answered:</span>
                     <span>{Object.keys(userAnswers).length}/{questions.length}</span>

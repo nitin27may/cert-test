@@ -64,14 +64,15 @@ class ExamService {
     return count ? questions.slice(0, count) : questions;
   }
 
-  async getAvailableExams(): Promise<Array<{ id: string; title: string; description: string; totalQuestions: number }>> {
+  async getAvailableExams(): Promise<Array<{ id: string; title: string; description: string; totalQuestions: number; networkingFocusPercentage?: number }>> {
     try {
       const allExams = await this.getAllExams();
       return Object.values(allExams.exams).map(exam => ({
         id: exam.id,
         title: exam.title,
         description: exam.description,
-        totalQuestions: exam.totalQuestions
+        totalQuestions: exam.totalQuestions,
+        networkingFocusPercentage: exam.networkingFocusPercentage
       }));
     } catch (error) {
       console.error('Failed to fetch available exams:', error);

@@ -1348,6 +1348,1531 @@
             "title": "Azure Web Application Firewall features",
             "url": "https://docs.microsoft.com/en-us/azure/web-application-firewall/ag/ag-overview"
           }
+        },
+        {
+          "id": 46,
+          "topic": "networking",
+          "module": "Virtual Networks",
+          "category": "Network Connectivity",
+          "type": "single",
+          "question": "You have a hub-and-spoke topology with Azure Firewall in the hub. Spoke VNets contain development, testing, and production environments. You need to ensure that development VMs cannot communicate with production VMs, but all spokes can access the internet. What should you configure?",
+          "options": [
+            "Configure NSG rules on each spoke subnet",
+            "Implement Azure Firewall network rules with explicit deny",
+            "Use Azure Virtual WAN for traffic isolation",
+            "Configure separate route tables for each spoke"
+          ],
+          "correct": 1,
+          "explanation": "Azure Firewall network rules should be configured to explicitly deny traffic between development and production networks while allowing internet access.",
+          "reasoning": {
+            "correct": "Azure Firewall network rules provide the centralized control needed in a hub-and-spoke topology. You can create rules that explicitly deny traffic between development (source) and production (destination) subnets while maintaining default allow rules for internet access. This approach provides centralized policy management and logging.",
+            "why_others_wrong": {
+              "0": "NSG rules would need to be configured on multiple subnets across different VNets, creating management complexity and potential for misconfigurations.",
+              "2": "Azure Virtual WAN is a networking service that provides optimized routing but doesn't inherently provide the granular traffic isolation needed between specific environments.",
+              "3": "Route tables control routing paths but don't provide the security filtering needed to block communication between specific environments."
+            }
+          },
+          "reference": {
+            "title": "Azure Firewall network rules",
+            "url": "https://docs.microsoft.com/en-us/azure/firewall/rule-processing"
+          }
+        },
+        {
+          "id": 47,
+          "topic": "networking",
+          "module": "Load Balancer",
+          "category": "High Availability",
+          "type": "multiple",
+          "question": "You are designing a load balancing solution for a mission-critical application that requires 99.99% availability. Which features should you implement? (Select all that apply)",
+          "options": [
+            "Use Standard Load Balancer instead of Basic",
+            "Deploy backend VMs across multiple Availability Zones",
+            "Configure health probes with appropriate intervals",
+            "Implement connection draining during maintenance",
+            "Use multiple frontend IP configurations"
+          ],
+          "correct": [0, 1, 2, 3],
+          "explanation": "Standard Load Balancer with zone redundancy, proper health probes, and connection draining are essential for high availability.",
+          "reasoning": {
+            "correct": "Standard Load Balancer provides zone redundancy and better SLA compared to Basic. Deploying across Availability Zones ensures tolerance to zone failures. Health probes detect unhealthy instances for automatic failover. Connection draining gracefully handles maintenance by completing existing connections before taking instances offline.",
+            "why_others_wrong": {
+              "4": "Multiple frontend IP configurations are useful for hosting multiple services but don't directly contribute to achieving 99.99% availability for a single application."
+            }
+          },
+          "reference": {
+            "title": "Standard Load Balancer overview",
+            "url": "https://docs.microsoft.com/en-us/azure/load-balancer/load-balancer-standard-overview"
+          }
+        },
+        {
+          "id": 48,
+          "topic": "networking",
+          "module": "ExpressRoute",
+          "category": "Hybrid Connectivity",
+          "type": "single",
+          "question": "Your company has two ExpressRoute circuits: one in East US (primary) and one in West US (backup). You want to ensure that all traffic normally flows through East US, with West US used only when East US is unavailable. How should you configure BGP routing?",
+          "options": [
+            "Use the same AS-PATH length for both circuits",
+            "Configure shorter AS-PATH on the East US circuit",
+            "Configure longer AS-PATH on the East US circuit",
+            "Use different Local Preference values"
+          ],
+          "correct": 1,
+          "explanation": "BGP prefers routes with shorter AS-PATH length, so configuring a shorter AS-PATH on the primary circuit ensures it's preferred.",
+          "reasoning": {
+            "correct": "BGP route selection algorithm prioritizes routes with shorter AS-PATH length (fewer autonomous systems in the path). By configuring AS-PATH prepending on the backup circuit (West US) to make it longer, or ensuring the primary circuit (East US) has a shorter AS-PATH, traffic will prefer the primary circuit under normal conditions.",
+            "why_others_wrong": {
+              "0": "Same AS-PATH length would result in load balancing or unpredictable routing behavior rather than clear primary/backup preference.",
+              "2": "Longer AS-PATH on the primary circuit would make it less preferred, causing traffic to prefer the backup circuit instead.",
+              "3": "Local Preference is used within an AS for internal routing decisions, but ExpressRoute circuits are typically in different locations with different AS numbers from the service provider perspective."
+            }
+          },
+          "reference": {
+            "title": "ExpressRoute routing optimization",
+            "url": "https://docs.microsoft.com/en-us/azure/expressroute/expressroute-optimize-routing"
+          }
+        },
+        {
+          "id": 49,
+          "topic": "networking",
+          "module": "Azure DNS",
+          "category": "Name Resolution",
+          "type": "multiple",
+          "question": "You are configuring Azure Private DNS for your multi-region deployment. Which scenarios require careful consideration? (Select all that apply)",
+          "options": [
+            "Cross-region name resolution between peered VNets",
+            "Automatic VM registration in private DNS zones",
+            "DNS resolution from on-premises through VPN",
+            "Using the same private DNS zone across multiple subscriptions",
+            "Conditional forwarders for hybrid DNS"
+          ],
+          "correct": [0, 1, 2, 4],
+          "explanation": "Cross-region resolution, auto-registration, on-premises resolution, and conditional forwarding all require specific configuration in Azure Private DNS.",
+          "reasoning": {
+            "correct": "Cross-region name resolution requires proper VNet linking to private DNS zones. Auto-registration needs to be enabled per VNet link. On-premises DNS resolution requires DNS forwarders or custom DNS servers. Conditional forwarders enable hybrid scenarios where some domains are resolved on-premises and others in Azure.",
+            "why_others_wrong": {
+              "3": "Private DNS zones can be easily shared across subscriptions through proper linking - this is a standard supported scenario that doesn't require special consideration."
+            }
+          },
+          "reference": {
+            "title": "Azure Private DNS scenarios",
+            "url": "https://docs.microsoft.com/en-us/azure/dns/private-dns-scenarios"
+          }
+        },
+        {
+          "id": 50,
+          "topic": "networking",
+          "module": "Network Security Groups",
+          "category": "Microsegmentation",
+          "type": "single",
+          "question": "You have a web application with database backend. The web tier is in subnet 10.0.1.0/24 and database tier in subnet 10.0.2.0/24. You need to allow web servers to connect to database port 1433, but block all other traffic between subnets. What is the most secure NSG configuration?",
+          "options": [
+            "Allow 10.0.1.0/24 to 10.0.2.0/24 on port 1433, implicit deny handles the rest",
+            "Allow 10.0.1.0/24 to 10.0.2.0/24 on port 1433, then explicit deny 10.0.1.0/24 to 10.0.2.0/24 on any port",
+            "Create Application Security Groups for web and database tiers, allow ASG-Web to ASG-DB on port 1433",
+            "Allow source service tag 'VirtualNetwork' to destination 10.0.2.0/24 on port 1433"
+          ],
+          "correct": 2,
+          "explanation": "Application Security Groups provide the most granular and manageable approach for microsegmentation between application tiers.",
+          "reasoning": {
+            "correct": "Application Security Groups (ASGs) provide application-centric security by allowing you to group VMs by their application role rather than by IP addresses. This approach is more maintainable as VMs can be added/removed from ASGs without updating NSG rules, and it provides clearer intent in security policies.",
+            "why_others_wrong": {
+              "0": "While functionally correct, using IP subnets directly is less flexible and harder to maintain when VMs are added or moved.",
+              "1": "The explicit deny rule is redundant since NSGs have an implicit deny at the end of the rule list, and this approach still suffers from IP-based limitations.",
+              "3": "Using 'VirtualNetwork' service tag is too broad and would allow access from any subnet in the VNet, not just the web tier."
+            }
+          },
+          "reference": {
+            "title": "Application Security Groups",
+            "url": "https://docs.microsoft.com/en-us/azure/virtual-network/application-security-groups"
+          }
+        },
+        {
+          "id": 51,
+          "topic": "storage",
+          "module": "Blob Storage",
+          "category": "Data Management",
+          "type": "single",
+          "question": "You have a storage account with hot, cool, and archive tiers enabled. A blob in the archive tier was rehydrated to hot tier 3 hours ago. You now need to move it to cool tier to optimize costs. What happens when you attempt this operation?",
+          "options": [
+            "The operation succeeds immediately",
+            "The operation is queued and completes within 1 hour",
+            "The operation fails because the blob is still in early deletion period",
+            "The operation fails because the blob must remain in hot tier for 30 days after rehydration"
+          ],
+          "correct": 0,
+          "explanation": "Once a blob is rehydrated from archive tier, it can be immediately moved to any other tier without restrictions.",
+          "reasoning": {
+            "correct": "After rehydration from archive tier, a blob behaves like any other blob in the target tier (hot in this case). There are no restrictions preventing immediate movement to cool tier after rehydration. The early deletion charges apply based on the original tier's minimum duration, not movement restrictions.",
+            "why_others_wrong": {
+              "1": "Tier changes between hot and cool are immediate, not queued operations.",
+              "2": "Early deletion periods apply to pricing (you're charged for minimum duration) but don't prevent tier changes.",
+              "3": "There is no requirement to keep blobs in hot tier for 30 days after rehydration - this is not an Azure Storage limitation."
+            }
+          },
+          "reference": {
+            "title": "Archive tier rehydration",
+            "url": "https://docs.microsoft.com/en-us/azure/storage/blobs/archive-rehydrate-overview"
+          }
+        },
+        {
+          "id": 52,
+          "topic": "storage",
+          "module": "File Storage",
+          "category": "Hybrid Integration",
+          "type": "multiple",
+          "question": "You are implementing Azure File Sync for a branch office scenario. Which components are required? (Select all that apply)",
+          "options": [
+            "Storage Sync Service",
+            "Azure File Share",
+            "Windows Server with Azure File Sync agent",
+            "Azure File Sync cloud endpoint",
+            "VPN or ExpressRoute connection"
+          ],
+          "correct": [0, 1, 2, 3],
+          "explanation": "Azure File Sync requires Storage Sync Service, Azure File Share, Windows Server with agent, and cloud endpoint configuration. VPN is not required.",
+          "reasoning": {
+            "correct": "Storage Sync Service is the Azure resource that orchestrates sync. Azure File Share is the cloud storage target. Windows Server with the Azure File Sync agent provides the on-premises component. Cloud endpoint connects the Azure File Share to the sync group for synchronization.",
+            "why_others_wrong": {
+              "4": "VPN or ExpressRoute is not required for Azure File Sync - it works over the public internet with HTTPS encryption. While private connectivity can be used for performance or compliance reasons, it's not a requirement."
+            }
+          },
+          "reference": {
+            "title": "Azure File Sync deployment",
+            "url": "https://docs.microsoft.com/en-us/azure/storage/file-sync/file-sync-deployment-guide"
+          }
+        },
+        {
+          "id": 53,
+          "topic": "compute",
+          "module": "Virtual Machines",
+          "category": "Performance Optimization",
+          "type": "single",
+          "question": "You have a compute-intensive application running on Standard_D4s_v3 VMs that occasionally experiences performance bottlenecks. Azure Advisor recommends resizing to Standard_D8s_v3. The application cannot tolerate downtime. What is the best approach to implement this change?",
+          "options": [
+            "Stop the VM, resize to Standard_D8s_v3, then start the VM",
+            "Use Azure Site Recovery to replicate to new VM size, then failover",
+            "Create a new VM with Standard_D8s_v3, migrate the application, then deallocate the old VM",
+            "Use VM scale sets with rolling upgrade to gradually replace instances"
+          ],
+          "correct": 2,
+          "explanation": "Creating a new VM and migrating the application provides zero downtime if properly orchestrated with load balancing or application-level failover.",
+          "reasoning": {
+            "correct": "Creating a new VM with the desired size and migrating the application allows for zero downtime when combined with proper load balancing or application-level routing. You can test the new VM, migrate traffic gradually, and only deallocate the old VM once everything is working correctly.",
+            "why_others_wrong": {
+              "0": "Stopping and resizing a VM requires downtime during the resize operation, which violates the no-downtime requirement.",
+              "1": "Azure Site Recovery is designed for disaster recovery, not for VM resizing, and would be overly complex for this scenario.",
+              "3": "VM scale sets are designed for multi-instance applications and wouldn't apply to resizing a single VM instance."
+            }
+          },
+          "reference": {
+            "title": "Resize Azure VMs",
+            "url": "https://docs.microsoft.com/en-us/azure/virtual-machines/resize-vm"
+          }
+        },
+        {
+          "id": 54,
+          "topic": "networking",
+          "module": "Azure Bastion",
+          "category": "Secure Access",
+          "type": "single",
+          "question": "You need to provide secure RDP/SSH access to VMs in multiple VNets across different regions. The solution should minimize cost and management overhead while maintaining security. What should you implement?",
+          "options": [
+            "Deploy Azure Bastion in each VNet",
+            "Deploy Azure Bastion in a hub VNet and peer all spoke VNets",
+            "Use Azure Bastion Standard SKU with IP-based connection",
+            "Configure point-to-site VPN with certificate authentication"
+          ],
+          "correct": 1,
+          "explanation": "Hub-and-spoke topology with Azure Bastion in the hub VNet provides centralized management and cost optimization while maintaining security.",
+          "reasoning": {
+            "correct": "Deploying Azure Bastion in a hub VNet and peering spoke VNets provides centralized secure access management, reduces costs (single Bastion instance), and simplifies administration. VNet peering allows Bastion to reach VMs in spoke VNets while maintaining network security.",
+            "why_others_wrong": {
+              "0": "Deploying Bastion in each VNet increases costs significantly and creates management overhead with multiple Bastion instances to maintain.",
+              "2": "IP-based connection is a feature for connecting to on-premises VMs, not for multi-VNet scenarios in Azure.",
+              "3": "Point-to-site VPN requires client configuration on each device and doesn't provide the browser-based access simplicity of Bastion."
+            }
+          },
+          "reference": {
+            "title": "Azure Bastion hub-spoke topology",
+            "url": "https://docs.microsoft.com/en-us/azure/bastion/vnet-peering"
+          }
+        },
+        {
+          "id": 55,
+          "topic": "identity",
+          "module": "Azure AD",
+          "category": "Conditional Access",
+          "type": "multiple",
+          "question": "You are configuring Conditional Access policies for a hybrid environment. Which conditions can be used to create adaptive policies? (Select all that apply)",
+          "options": [
+            "User risk level from Azure AD Identity Protection",
+            "Sign-in risk level from Azure AD Identity Protection", 
+            "Device compliance status from Microsoft Intune",
+            "Geographic location based on IP address",
+            "Time of day and day of week"
+          ],
+          "correct": [0, 1, 2, 3],
+          "explanation": "User risk, sign-in risk, device compliance, and location are all supported Conditional Access conditions. Time-based conditions are not directly supported.",
+          "reasoning": {
+            "correct": "Azure AD Conditional Access supports user risk and sign-in risk from Identity Protection for detecting compromised accounts and suspicious sign-ins. Device compliance from Intune ensures only managed/compliant devices can access resources. Named locations allow geographic restrictions based on IP ranges.",
+            "why_others_wrong": {
+              "4": "Time-based conditions (time of day, day of week) are not natively supported in Conditional Access policies. You would need to implement this through custom solutions or third-party tools."
+            }
+          },
+          "reference": {
+            "title": "Conditional Access conditions",
+            "url": "https://docs.microsoft.com/en-us/azure/active-directory/conditional-access/concept-conditional-access-conditions"
+          }
+        },
+        {
+          "id": 56,
+          "topic": "monitoring",
+          "module": "Azure Monitor",
+          "category": "Log Analytics",
+          "type": "single",
+          "question": "You need to create a KQL query to find all VMs that had CPU usage above 90% for more than 10 consecutive minutes in the last 24 hours. Which query approach is most efficient?",
+          "options": [
+            "Use Perf table with bin() function and count aggregation",
+            "Use Perf table with prev() function to compare consecutive values",
+            "Use InsightsMetrics table with series_decompose() function",
+            "Use Perf table with sliding window and avg() aggregation"
+          ],
+          "correct": 3,
+          "explanation": "Using sliding window aggregation with avg() function provides the most efficient way to identify sustained high CPU usage over a specific time period.",
+          "reasoning": {
+            "correct": "A sliding window approach using bin() for time bucketing and avg() aggregation can efficiently identify periods where CPU usage remained consistently high. You can use row_window_session() or range operators to find consecutive high-usage periods exceeding the 10-minute threshold.",
+            "why_others_wrong": {
+              "0": "Simple bin() and count aggregation doesn't address the 'consecutive minutes' requirement effectively.",
+              "1": "prev() function is less efficient for analyzing extended time periods and doesn't directly solve the sliding window requirement.",
+              "2": "series_decompose() is used for time series analysis and anomaly detection, not for simple threshold monitoring over consecutive periods."
+            }
+          },
+          "reference": {
+            "title": "KQL time series analysis",
+            "url": "https://docs.microsoft.com/en-us/azure/azure-monitor/logs/aggregations"
+          }
+        },
+        {
+          "id": 57,
+          "topic": "backup",
+          "module": "Azure Backup",
+          "category": "VM Protection",
+          "type": "multiple",
+          "question": "You need to implement backup for Azure VMs with the following requirements: application-consistent backups, cross-region restore capability, and encryption at rest. Which features should you enable? (Select all that apply)",
+          "options": [
+            "Azure Backup with VSS (Volume Shadow Copy Service)",
+            "Geo-redundant storage (GRS) for Recovery Services vault",
+            "Azure Disk Encryption on the VMs",
+            "Cross Region Restore feature",
+            "Soft delete for backup data"
+          ],
+          "correct": [0, 1, 3],
+          "explanation": "VSS enables application-consistent backups, GRS provides cross-region capability, and Cross Region Restore enables the restore functionality.",
+          "reasoning": {
+            "correct": "VSS integration ensures application-consistent backups by coordinating with applications to flush data and create consistent snapshots. GRS replicates backup data to a secondary region. Cross Region Restore specifically enables the ability to restore VMs in the secondary region from GRS backup data.",
+            "why_others_wrong": {
+              "2": "Azure Disk Encryption encrypts VM disks but doesn't provide encryption at rest for backup data - Azure Backup provides its own encryption.",
+              "4": "Soft delete protects against accidental deletion but doesn't address the specific requirements of application consistency, cross-region restore, or encryption at rest."
+            }
+          },
+          "reference": {
+            "title": "Azure Backup features",
+            "url": "https://docs.microsoft.com/en-us/azure/backup/backup-azure-vms-introduction"
+          }
+        },
+        {
+          "id": 58,
+          "topic": "networking",
+          "module": "Azure Front Door",
+          "category": "Global Load Balancing",
+          "type": "single",
+          "question": "You have a global web application with backends in East US, West Europe, and Southeast Asia. Users are experiencing slow response times from the Southeast Asia region. Azure Front Door is configured with default routing. What should you investigate first?",
+          "options": [
+            "Backend health probe configuration and intervals",
+            "Session affinity settings in Front Door",
+            "SSL certificate configuration on backends",
+            "Network latency between Front Door edge locations and backends"
+          ],
+          "correct": 0,
+          "explanation": "Backend health probe issues can cause Front Door to route traffic away from the closest (Southeast Asia) backend, resulting in increased latency.",
+          "reasoning": {
+            "correct": "If the Southeast Asia backend is failing health probes, Front Door will route user traffic to the next available backend (likely West Europe or East US), causing increased latency for Southeast Asia users. Health probe configuration including probe path, interval, and timeout settings should be investigated first.",
+            "why_others_wrong": {
+              "1": "Session affinity would cause users to stick to their initially assigned backend but wouldn't specifically cause poor performance for a geographic region.",
+              "2": "SSL certificate issues would typically cause connection errors rather than slow response times.",
+              "3": "While network latency could be a factor, it's less likely to suddenly change. Health probe failures are a more common cause of routing suboptimal traffic."
+            }
+          },
+          "reference": {
+            "title": "Azure Front Door health probes",
+            "url": "https://docs.microsoft.com/en-us/azure/frontdoor/front-door-health-probes"
+          }
+        },
+        {
+          "id": 59,
+          "topic": "networking",
+          "module": "Virtual WAN",
+          "category": "SD-WAN Integration",
+          "type": "multiple",
+          "question": "Your company is implementing Azure Virtual WAN for global connectivity. Which scenarios are best suited for Virtual WAN? (Select all that apply)",
+          "options": [
+            "Connecting multiple branch offices to Azure and each other",
+            "Optimizing ExpressRoute circuits across multiple locations",
+            "Implementing site-to-site VPN with BGP routing",
+            "Providing user VPN (point-to-site) at scale",
+            "Simple hub-and-spoke topology with 3 spoke VNets"
+          ],
+          "correct": [0, 1, 2, 3],
+          "explanation": "Virtual WAN excels at complex multi-site connectivity, ExpressRoute optimization, large-scale VPN, and user VPN scenarios, but is overkill for simple topologies.",
+          "reasoning": {
+            "correct": "Virtual WAN provides optimized routing for branch-to-branch and branch-to-Azure connectivity. It can optimize ExpressRoute by providing global reach and interconnection. It supports large-scale site-to-site VPN with BGP. User VPN service can scale to thousands of concurrent connections.",
+            "why_others_wrong": {
+              "4": "A simple hub-and-spoke with only 3 spokes is better served by traditional VNet peering or standard VPN gateways. Virtual WAN adds unnecessary complexity and cost for small, simple topologies."
+            }
+          },
+          "reference": {
+            "title": "Azure Virtual WAN overview",
+            "url": "https://docs.microsoft.com/en-us/azure/virtual-wan/virtual-wan-about"
+          }
+        },
+        {
+          "id": 60,
+          "topic": "compute",
+          "module": "App Service",
+          "category": "Scaling and Performance",
+          "type": "single",
+          "question": "Your App Service application experiences predictable traffic spikes every weekday from 9 AM to 5 PM. The application should scale out during these hours and scale in during off-hours to optimize costs. What scaling approach should you implement?",
+          "options": [
+            "Configure manual scaling with performance counters",
+            "Use autoscale with schedule-based rules",
+            "Implement autoscale with metric-based rules using CPU percentage",
+            "Use Azure Functions consumption plan instead"
+          ],
+          "correct": 1,
+          "explanation": "Schedule-based autoscale rules are perfect for predictable traffic patterns, allowing proactive scaling before traffic spikes occur.",
+          "reasoning": {
+            "correct": "Schedule-based autoscale rules allow you to define specific times and days when scaling should occur. This is ideal for predictable patterns like business hours traffic. You can configure rules to scale out before 9 AM and scale in after 5 PM on weekdays, providing better performance and cost optimization.",
+            "why_others_wrong": {
+              "0": "Manual scaling requires human intervention and doesn't automatically respond to the predictable pattern.",
+              "2": "Metric-based rules are reactive - they scale after performance issues occur. For predictable patterns, proactive schedule-based scaling provides better user experience.",
+              "3": "Azure Functions consumption plan is for serverless scenarios and wouldn't be appropriate for migrating an existing App Service application."
+            }
+          },
+          "reference": {
+            "title": "App Service autoscale",
+            "url": "https://docs.microsoft.com/en-us/azure/azure-monitor/autoscale/autoscale-get-started"
+          }
+        },
+        {
+          "id": 61,
+          "topic": "networking",
+          "module": "Private Link",
+          "category": "Secure Connectivity",
+          "type": "single",
+          "question": "You need to securely connect to Azure SQL Database from VMs in your VNet without traffic going over the public internet. The solution should prevent any public IP access to the database. What should you implement?",
+          "options": [
+            "Configure service endpoints for Azure SQL Database on the VNet",
+            "Implement Private Link for Azure SQL Database",
+            "Use VNet-to-VNet peering with Azure SQL Database VNet",
+            "Configure an Application Gateway with backend pool pointing to SQL Database"
+          ],
+          "correct": 1,
+          "explanation": "Private Link creates a private endpoint in your VNet, providing completely private connectivity to Azure SQL Database without any public internet exposure.",
+          "reasoning": {
+            "correct": "Azure Private Link creates a private endpoint within your VNet that has a private IP address. This allows secure communication to Azure SQL Database over the Microsoft backbone network without any public internet exposure. You can also disable public network access on the SQL Database for complete isolation.",
+            "why_others_wrong": {
+              "0": "Service endpoints still require the service to have a public IP and rely on service-level firewall rules. Traffic still goes over the Azure backbone but the service remains publicly accessible.",
+              "2": "Azure SQL Database is a PaaS service and doesn't reside in a VNet that can be peered.",
+              "3": "Application Gateway cannot be used as a proxy for database connections - it's designed for HTTP/HTTPS traffic, not database protocols."
+            }
+          },
+          "reference": {
+            "title": "Azure Private Link for SQL Database",
+            "url": "https://docs.microsoft.com/en-us/azure/azure-sql/database/private-endpoint-overview"
+          }
+        },
+        {
+          "id": 62,
+          "topic": "identity",
+          "module": "Azure Policy",
+          "category": "Governance",
+          "type": "multiple",
+          "question": "You need to implement governance policies that ensure all storage accounts are created with specific security configurations. Which Azure Policy effects should you consider? (Select all that apply)",
+          "options": [
+            "Audit - to identify non-compliant storage accounts",
+            "Deny - to prevent creation of non-compliant storage accounts",
+            "DeployIfNotExists - to automatically apply security configurations",
+            "Modify - to change properties of existing storage accounts",
+            "Append - to add required tags to storage accounts"
+          ],
+          "correct": [0, 1, 2, 3, 4],
+          "explanation": "All these policy effects can be used for storage account governance: Audit for monitoring, Deny for prevention, DeployIfNotExists for automatic configuration, Modify for remediation, and Append for tagging.",
+          "reasoning": {
+            "correct": "Audit effect monitors compliance without blocking operations. Deny effect prevents non-compliant resource creation. DeployIfNotExists can automatically deploy related resources like diagnostic settings or backup configurations. Modify effect can change resource properties like enabling secure transfer. Append effect can add required tags or security configurations.",
+            "why_others_wrong": {
+              "all_applicable": "This is a select-all scenario where all options are valid policy effects for storage account governance."
+            }
+          },
+          "reference": {
+            "title": "Azure Policy effects",
+            "url": "https://docs.microsoft.com/en-us/azure/governance/policy/concepts/effects"
+          }
+        },
+        {
+          "id": 63,
+          "topic": "networking",
+          "module": "Azure Firewall",
+          "category": "Threat Intelligence",
+          "type": "single",
+          "question": "You have Azure Firewall Premium deployed with threat intelligence enabled. A user reports they cannot access a legitimate website that was previously accessible. You suspect the site might be blocked by threat intelligence. What should you check first?",
+          "options": [
+            "Azure Firewall application rules for explicit deny rules",
+            "Azure Firewall threat intelligence alerts and logs",
+            "Network security group rules on the user's subnet",
+            "DNS resolution issues with Azure DNS"
+          ],
+          "correct": 1,
+          "explanation": "Threat intelligence can dynamically block access to websites flagged as malicious. Checking threat intelligence alerts and logs will show if the site was blocked due to threat intelligence.",
+          "reasoning": {
+            "correct": "Azure Firewall Premium with threat intelligence automatically blocks traffic to known malicious IP addresses and domains based on Microsoft's threat intelligence feeds. These blocks are logged and can be reviewed in Azure Monitor logs. Sometimes legitimate sites may be temporarily flagged, requiring investigation of threat intelligence decisions.",
+            "why_others_wrong": {
+              "0": "Application rules are static configurations, but threat intelligence blocks are dynamic and would show up in logs differently.",
+              "2": "NSG rules would affect connectivity but wouldn't explain why a previously accessible site is now blocked.",
+              "3": "DNS resolution issues would typically result in different error messages than threat intelligence blocking."
+            }
+          },
+          "reference": {
+            "title": "Azure Firewall threat intelligence",
+            "url": "https://docs.microsoft.com/en-us/azure/firewall/threat-intel"
+          }
+        },
+        {
+          "id": 64,
+          "topic": "networking",
+          "module": "VPN Gateway",
+          "category": "Site-to-Site Connectivity",
+          "type": "single",
+          "question": "Your organization has a site-to-site VPN connection to Azure with BGP enabled. You notice that only some on-premises subnets can communicate with Azure VMs, while others cannot. On-premises routing appears correct. What is the most likely issue in Azure?",
+          "options": [
+            "The VPN Gateway local network gateway configuration is missing subnet ranges",
+            "BGP peer IP configuration is incorrect on the VPN Gateway",
+            "Virtual network gateway subnet is too small",
+            "User-defined routes are overriding BGP routes"
+          ],
+          "correct": 3,
+          "explanation": "When BGP is enabled, user-defined routes (UDRs) with the same or more specific prefixes can override BGP-learned routes, causing connectivity issues.",
+          "reasoning": {
+            "correct": "In Azure, user-defined routes have higher priority than BGP routes. If there are UDRs configured with the same prefixes as on-premises subnets but pointing to different next hops (like a network virtual appliance), they will override the BGP-learned routes from the VPN Gateway, causing connectivity issues for those specific subnets.",
+            "why_others_wrong": {
+              "0": "When BGP is enabled, the local network gateway's address space is not used for routing - BGP advertisements handle route learning dynamically.",
+              "1": "If BGP peer IP was incorrect, no routes would be learned via BGP, affecting all subnets, not just some.",
+              "2": "Gateway subnet size affects deployment and scalability but wouldn't cause selective routing issues."
+            }
+          },
+          "reference": {
+            "title": "Azure VPN Gateway BGP",
+            "url": "https://docs.microsoft.com/en-us/azure/vpn-gateway/vpn-gateway-bgp-overview"
+          }
+        },
+        {
+          "id": 65,
+          "topic": "storage",
+          "module": "Azure Files",
+          "category": "Access Control",
+          "type": "multiple",
+          "question": "You are implementing Azure Files with Active Directory authentication for a hybrid environment. Which authentication methods are supported? (Select all that apply)",
+          "options": [
+            "On-premises Active Directory Domain Services (AD DS)",
+            "Azure Active Directory Domain Services (Azure AD DS)",
+            "Azure Active Directory Kerberos for hybrid users",
+            "Storage account key authentication",
+            "Shared Access Signature (SAS) tokens"
+          ],
+          "correct": [0, 1, 2, 3, 4],
+          "explanation": "Azure Files supports multiple authentication methods: on-premises AD DS, Azure AD DS, Azure AD Kerberos, storage account keys, and SAS tokens.",
+          "reasoning": {
+            "correct": "Azure Files provides comprehensive authentication options. On-premises AD DS enables seamless integration with existing domain environments. Azure AD DS provides managed domain services in the cloud. Azure AD Kerberos allows hybrid users to authenticate using their Azure AD credentials. Storage account keys and SAS tokens provide programmatic access options.",
+            "why_others_wrong": {
+              "all_applicable": "This is a select-all scenario where all options represent valid authentication methods for Azure Files."
+            }
+          },
+          "reference": {
+            "title": "Azure Files authentication",
+            "url": "https://docs.microsoft.com/en-us/azure/storage/files/storage-files-active-directory-overview"
+          }
+        },
+        {
+          "id": 66,
+          "topic": "networking",
+          "module": "Network Watcher",
+          "category": "Troubleshooting",
+          "type": "single",
+          "question": "A user cannot connect to a VM in Azure from their on-premises location. You need to troubleshoot the connectivity issue systematically. Which Network Watcher tool should you use first?",
+          "options": [
+            "IP flow verify to check if traffic is allowed by NSG rules",
+            "Connection troubleshoot to test end-to-end connectivity",
+            "Next hop to verify routing configuration",
+            "Security group view to see all applied security rules"
+          ],
+          "correct": 1,
+          "explanation": "Connection troubleshoot provides comprehensive end-to-end connectivity testing and identifies where the connection is failing in the path.",
+          "reasoning": {
+            "correct": "Connection troubleshoot performs comprehensive testing from source to destination, checking connectivity through all network components including NSGs, route tables, and network appliances. It provides detailed results showing exactly where connectivity fails and why, making it the best starting point for systematic troubleshooting.",
+            "why_others_wrong": {
+              "0": "IP flow verify only checks NSG rules for a specific flow but doesn't verify end-to-end connectivity or identify routing issues.",
+              "2": "Next hop helps verify routing but doesn't check if traffic is actually allowed by security rules or if the destination is reachable.",
+              "3": "Security group view shows applied rules but doesn't test actual connectivity or identify which rule might be blocking traffic."
+            }
+          },
+          "reference": {
+            "title": "Azure Network Watcher connection troubleshoot",
+            "url": "https://docs.microsoft.com/en-us/azure/network-watcher/network-watcher-connectivity-overview"
+          }
+        },
+        {
+          "id": 67,
+          "topic": "networking",
+          "module": "Azure CDN",
+          "category": "Performance Optimization",
+          "type": "multiple",
+          "question": "You are configuring Azure CDN for a global e-commerce website. Which caching behaviors should you implement? (Select all that apply)",
+          "options": [
+            "Cache static assets (images, CSS, JS) with long expiration times",
+            "Bypass cache for user authentication endpoints",
+            "Enable compression for text-based content",
+            "Cache product catalog pages with short expiration times",
+            "Use query string caching for personalized content"
+          ],
+          "correct": [0, 1, 2, 3],
+          "explanation": "Static assets should have long cache times, authentication should bypass cache, compression improves performance, and product pages need short expiration for freshness. Query string caching is not ideal for personalized content.",
+          "reasoning": {
+            "correct": "Static assets rarely change and can be cached for long periods. Authentication endpoints must bypass cache to ensure security and user experience. Compression reduces bandwidth and improves load times. Product catalog pages need short expiration to balance performance with content freshness for pricing/inventory updates.",
+            "why_others_wrong": {
+              "4": "Query string caching for personalized content defeats the purpose of CDN caching since personalized content should be unique per user and not cached at edge locations."
+            }
+          },
+          "reference": {
+            "title": "Azure CDN caching rules",
+            "url": "https://docs.microsoft.com/en-us/azure/cdn/cdn-caching-rules"
+          }
+        },
+        {
+          "id": 68,
+          "topic": "networking",
+          "module": "Azure Firewall",
+          "category": "Network Address Translation",
+          "type": "single",
+          "question": "You have Azure Firewall configured in a hub VNet with DNAT rules to allow external access to internal servers. Users report intermittent connectivity issues. You notice that the firewall has multiple public IP addresses. What is the most likely cause?",
+          "options": [
+            "DNAT rules are conflicting with network rules",
+            "Source Network Address Translation (SNAT) port exhaustion",
+            "Health probe failures on backend servers",
+            "BGP routing issues with ExpressRoute"
+          ],
+          "correct": 1,
+          "explanation": "With multiple public IPs and intermittent issues, SNAT port exhaustion is likely as the firewall runs out of available ports for outbound connections.",
+          "reasoning": {
+            "correct": "SNAT port exhaustion occurs when there are many simultaneous outbound connections from internal servers through the firewall. Each public IP provides 64K ports, but with high connection volumes, ports can be exhausted. Intermittent connectivity is a classic symptom as connections succeed when ports are available but fail during peak usage.",
+            "why_others_wrong": {
+              "0": "DNAT rule conflicts would cause consistent failures for specific services, not intermittent issues across all services.",
+              "2": "Health probe failures would affect inbound DNAT connections but wouldn't explain intermittent outbound connectivity issues.",
+              "3": "BGP routing issues would affect routing decisions but wouldn't cause intermittent connectivity - routes are either working or not."
+            }
+          },
+          "reference": {
+            "title": "Azure Firewall SNAT",
+            "url": "https://docs.microsoft.com/en-us/azure/firewall/snat-private-range"
+          }
+        },
+        {
+          "id": 69,
+          "topic": "identity",
+          "module": "Managed Identity",
+          "category": "Service Authentication",
+          "type": "single",
+          "question": "You have an App Service that needs to access Azure Key Vault. You want to use managed identity for authentication. The App Service will be deployed across multiple environments (dev, test, prod) with different Key Vaults. What type of managed identity should you use?",
+          "options": [
+            "System-assigned managed identity",
+            "User-assigned managed identity",
+            "Service principal with certificate authentication",
+            "Shared access signature from Key Vault"
+          ],
+          "correct": 1,
+          "explanation": "User-assigned managed identity allows the same identity to be used across multiple environments and resources, providing better manageability for multi-environment scenarios.",
+          "reasoning": {
+            "correct": "User-assigned managed identity can be created independently and assigned to multiple resources across different environments. This allows you to use the same identity across dev, test, and prod App Services while granting appropriate permissions to different Key Vaults. It provides better lifecycle management and consistency across environments.",
+            "why_others_wrong": {
+              "0": "System-assigned managed identity is tied to the specific App Service instance and cannot be shared across multiple environments or resources.",
+              "2": "Service principal with certificate requires managing certificates and secrets, adding complexity compared to managed identity.",
+              "3": "SAS tokens are not the proper authentication method for applications to access Key Vault - they're used for specific blob/queue access scenarios."
+            }
+          },
+          "reference": {
+            "title": "User-assigned managed identity",
+            "url": "https://docs.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview"
+          }
+        },
+        {
+          "id": 70,
+          "topic": "networking",
+          "module": "Azure Load Balancer",
+          "category": "Session Persistence",
+          "type": "single",
+          "question": "You have a web application behind a Standard Load Balancer that maintains user session state locally. Users report being logged out randomly. The application requires users to stay connected to the same backend server. What should you configure?",
+          "options": [
+            "Configure session persistence (affinity) to Client IP",
+            "Configure session persistence to Client IP and Protocol",
+            "Implement sticky sessions using Application Gateway instead",
+            "Configure health probes to detect session state"
+          ],
+          "correct": 1,
+          "explanation": "Session persistence set to 'Client IP and Protocol' ensures that requests from the same client IP using the same protocol always go to the same backend server.",
+          "reasoning": {
+            "correct": "'Client IP and Protocol' session persistence creates a hash based on both client IP address and protocol (TCP/UDP), ensuring that all requests from the same client using the same protocol are consistently routed to the same backend server. This maintains session affinity for stateful applications.",
+            "why_others_wrong": {
+              "0": "'Client IP' only considers IP address but not protocol, which might not provide sufficient granularity for applications using multiple protocols.",
+              "2": "While Application Gateway supports cookie-based session affinity, migrating to a different load balancing solution is more complex than configuring existing Load Balancer settings.",
+              "3": "Health probes detect server health, not session state. They wouldn't solve the session persistence requirement."
+            }
+          },
+          "reference": {
+            "title": "Load Balancer session persistence",
+            "url": "https://docs.microsoft.com/en-us/azure/load-balancer/load-balancer-distribution-mode"
+          }
+        },
+        {
+          "id": 71,
+          "topic": "networking",
+          "module": "Network Security Groups",
+          "category": "Traffic Analysis",
+          "type": "multiple",
+          "question": "You need to analyze network traffic patterns and security threats in your Azure environment. Which NSG features should you enable? (Select all that apply)",
+          "options": [
+            "NSG Flow Logs to capture traffic information",
+            "Traffic Analytics for flow log analysis and insights",
+            "Azure Security Center integration for threat detection",
+            "Diagnostic logs for NSG rule evaluation",
+            "Network Watcher packet capture for detailed analysis"
+          ],
+          "correct": [0, 1, 3],
+          "explanation": "NSG Flow Logs capture traffic data, Traffic Analytics provides insights and visualization, and diagnostic logs show rule evaluation. Security Center and packet capture are separate tools.",
+          "reasoning": {
+            "correct": "NSG Flow Logs capture detailed information about traffic allowed or denied by NSG rules. Traffic Analytics processes flow logs to provide insights, visualizations, and anomaly detection. Diagnostic logs provide information about NSG rule evaluation and processing.",
+            "why_others_wrong": {
+              "2": "Azure Security Center (now Microsoft Defender for Cloud) provides security recommendations and threat detection but is not specifically an NSG feature - it's a separate security service.",
+              "4": "Network Watcher packet capture is a separate troubleshooting tool, not an NSG feature. It captures packets for detailed analysis but is not part of NSG logging capabilities."
+            }
+          },
+          "reference": {
+            "title": "NSG Flow Logs overview",
+            "url": "https://docs.microsoft.com/en-us/azure/network-watcher/network-watcher-nsg-flow-logging-overview"
+          }
+        },
+        {
+          "id": 72,
+          "topic": "networking",
+          "module": "ExpressRoute",
+          "category": "Monitoring and Troubleshooting",
+          "type": "single",
+          "question": "Your ExpressRoute circuit shows 'Enabled' status but VMs in Azure cannot communicate with on-premises resources. BGP sessions are established. What should you check first?",
+          "options": [
+            "ExpressRoute gateway configuration and routing tables",
+            "On-premises BGP route advertisements",
+            "Azure virtual network gateway subnet size",
+            "ExpressRoute circuit bandwidth utilization"
+          ],
+          "correct": 1,
+          "explanation": "If BGP sessions are established but there's no connectivity, the most likely issue is that on-premises routes are not being properly advertised to Azure.",
+          "reasoning": {
+            "correct": "When BGP sessions are established but connectivity fails, the issue is typically with route advertisements. On-premises networks need to advertise their subnets via BGP for Azure VMs to know how to reach them. Check if the on-premises BGP router is properly advertising the required network prefixes.",
+            "why_others_wrong": {
+              "0": "ExpressRoute gateway configuration issues would typically prevent BGP session establishment, not just connectivity after sessions are up.",
+              "2": "Gateway subnet size affects deployment and scalability but wouldn't cause connectivity issues after successful BGP establishment.",
+              "3": "Bandwidth utilization would affect performance but not prevent basic connectivity when BGP sessions are working."
+            }
+          },
+          "reference": {
+            "title": "ExpressRoute BGP requirements",
+            "url": "https://docs.microsoft.com/en-us/azure/expressroute/expressroute-routing"
+          }
+        },
+        {
+          "id": 73,
+          "topic": "compute",
+          "module": "Virtual Machine Scale Sets",
+          "category": "Auto Scaling",
+          "type": "single",
+          "question": "You have a VM Scale Set with autoscale configured based on CPU percentage. During a traffic spike, new instances are created but the application still performs poorly. What is the most likely cause?",
+          "options": [
+            "The scale-out threshold is set too high",
+            "The cool-down period is too long",
+            "Application startup time is longer than the scale-out interval",
+            "Maximum instance count is reached"
+          ],
+          "correct": 2,
+          "explanation": "If new instances are being created but performance remains poor, the application likely takes longer to start and become ready than the autoscale system expects.",
+          "reasoning": {
+            "correct": "When autoscale creates new instances quickly but performance doesn't improve, it usually indicates that the application has a long startup time or initialization period. The new VMs are running but the application isn't yet ready to serve traffic effectively. This creates a lag between scaling events and actual capacity improvement.",
+            "why_others_wrong": {
+              "0": "If the threshold was too high, new instances wouldn't be created at all during the traffic spike.",
+              "1": "Cool-down period affects how frequently scaling can occur, but wouldn't prevent performance improvement once new instances are created.",
+              "3": "If maximum instance count was reached, no new instances would be created, contradicting the scenario."
+            }
+          },
+          "reference": {
+            "title": "Virtual Machine Scale Sets autoscale",
+            "url": "https://docs.microsoft.com/en-us/azure/virtual-machine-scale-sets/virtual-machine-scale-sets-autoscale-overview"
+          }
+        },
+        {
+          "id": 74,
+          "topic": "networking",
+          "module": "Azure VPN Gateway",
+          "category": "Performance Optimization",
+          "type": "multiple",
+          "question": "You need to optimize VPN Gateway performance for a high-bandwidth application. Which configurations should you consider? (Select all that apply)",
+          "options": [
+            "Use VpnGw2 or higher SKU for better throughput",
+            "Configure multiple tunnels with ECMP (Equal-Cost Multi-Path)",
+            "Enable BGP for dynamic routing and redundancy",
+            "Use Route-based VPN instead of Policy-based",
+            "Configure custom IPsec/IKE policies for optimal encryption"
+          ],
+          "correct": [0, 1, 2, 3, 4],
+          "explanation": "All these configurations contribute to VPN Gateway performance optimization: higher SKUs provide more throughput, ECMP enables load distribution, BGP improves routing, route-based VPN is more flexible, and custom policies can optimize encryption overhead.",
+          "reasoning": {
+            "correct": "Higher SKUs (VpnGw2+) provide increased bandwidth and connection limits. ECMP allows traffic distribution across multiple tunnels for better throughput. BGP provides dynamic routing and automatic failover. Route-based VPN supports multiple tunnels and better routing flexibility. Custom IPsec/IKE policies allow optimization of encryption algorithms for the best balance of security and performance.",
+            "why_others_wrong": {
+              "all_applicable": "This is a comprehensive optimization scenario where all options contribute to improved VPN Gateway performance."
+            }
+          },
+          "reference": {
+            "title": "VPN Gateway performance optimization",
+            "url": "https://docs.microsoft.com/en-us/azure/vpn-gateway/vpn-gateway-about-vpngateways"
+          }
+        },
+        {
+          "id": 75,
+          "topic": "storage",
+          "module": "Managed Disks",
+          "category": "Performance Tuning",
+          "type": "single",
+          "question": "You have a database server that requires consistent high IOPS performance. The workload shows spiky patterns with periods of very high I/O demand. Which disk type should you choose?",
+          "options": [
+            "Standard SSD with disk caching enabled",
+            "Premium SSD with disk caching enabled",
+            "Ultra Disk with provisioned IOPS",
+            "Premium SSD v2 with adjustable IOPS"
+          ],
+          "correct": 2,
+          "explanation": "Ultra Disk provides consistent, predictable performance with provisioned IOPS that can handle spiky workloads without performance degradation.",
+          "reasoning": {
+            "correct": "Ultra Disk offers the highest and most consistent performance with provisioned IOPS and throughput. It provides sub-millisecond latency and can handle spiky workloads without the performance variability that comes with credit-based systems. For database workloads requiring consistent high IOPS, Ultra Disk is the optimal choice.",
+            "why_others_wrong": {
+              "0": "Standard SSD has lower IOPS limits and uses a credit system that may not sustain high performance during spiky workloads.",
+              "1": "Premium SSD uses a credit-based system for bursting, which may not provide consistent performance during sustained high I/O periods.",
+              "3": "Premium SSD v2 offers good performance but Ultra Disk provides even higher IOPS limits and more consistent latency for extreme database workloads."
+            }
+          },
+          "reference": {
+            "title": "Azure disk types comparison",
+            "url": "https://docs.microsoft.com/en-us/azure/virtual-machines/disks-types"
+          }
+        },
+        {
+          "id": 76,
+          "topic": "networking",
+          "module": "Azure DNS",
+          "category": "Hybrid DNS",
+          "type": "single",
+          "question": "You have a hybrid environment where Azure VMs need to resolve both Azure-hosted services and on-premises DNS names. On-premises systems also need to resolve Azure private DNS zones. What is the recommended DNS architecture?",
+          "options": [
+            "Use Azure DNS forwarders in both directions",
+            "Configure conditional forwarding on on-premises DNS servers",
+            "Deploy custom DNS servers in Azure with forwarder configuration",
+            "Use Azure Private DNS zones with VNet links only"
+          ],
+          "correct": 2,
+          "explanation": "Custom DNS servers in Azure with proper forwarder configuration provide the most flexible and reliable solution for bidirectional DNS resolution in hybrid environments.",
+          "reasoning": {
+            "correct": "Custom DNS servers in Azure can be configured with conditional forwarders to send Azure-specific queries to Azure DNS (168.63.129.16) and on-premises queries to on-premises DNS servers. This provides centralized DNS management for Azure VMs while enabling bidirectional resolution between Azure and on-premises environments.",
+            "why_others_wrong": {
+              "0": "Azure DNS forwarders alone cannot handle the complexity of bidirectional resolution and custom DNS zones effectively.",
+              "1": "Conditional forwarding on on-premises DNS servers helps on-premises resolution but doesn't solve Azure VM DNS requirements for hybrid scenarios.",
+              "3": "Azure Private DNS zones with VNet links don't provide resolution for on-premises names and don't enable on-premises systems to resolve Azure private zones."
+            }
+          },
+          "reference": {
+            "title": "Hybrid DNS solutions",
+            "url": "https://docs.microsoft.com/en-us/azure/dns/private-dns-scenarios"
+          }
+        },
+        {
+          "id": 77,
+          "topic": "identity",
+          "module": "Azure RBAC",
+          "category": "Custom Roles",
+          "type": "multiple",
+          "question": "You need to create a custom role for database administrators who should be able to manage SQL databases but not modify networking or security configurations. Which permissions should be included? (Select all that apply)",
+          "options": [
+            "Microsoft.Sql/servers/databases/*",
+            "Microsoft.Sql/servers/databases/read",
+            "Microsoft.Sql/servers/firewallRules/read",
+            "Microsoft.Sql/servers/firewallRules/*",
+            "Microsoft.Network/*/read"
+          ],
+          "correct": [0, 2, 4],
+          "explanation": "Database administrators need full database management permissions, read access to firewall rules for troubleshooting, and network read permissions for monitoring, but not write access to security configurations.",
+          "reasoning": {
+            "correct": "Microsoft.Sql/servers/databases/* provides complete database management capabilities. Microsoft.Sql/servers/firewallRules/read allows viewing firewall configurations for troubleshooting without modification rights. Microsoft.Network/*/read provides visibility into network configurations affecting database connectivity.",
+            "why_others_wrong": {
+              "1": "Microsoft.Sql/servers/databases/read is redundant when Microsoft.Sql/servers/databases/* is included, as the latter includes read permissions.",
+              "3": "Microsoft.Sql/servers/firewallRules/* would allow modifying firewall rules, which violates the requirement to not modify security configurations."
+            }
+          },
+          "reference": {
+            "title": "Azure custom roles",
+            "url": "https://docs.microsoft.com/en-us/azure/role-based-access-control/custom-roles"
+          }
+        },
+        {
+          "id": 78,
+          "topic": "networking",
+          "module": "Application Gateway",
+          "category": "SSL/TLS Management",
+          "type": "single",
+          "question": "You have Application Gateway configured with end-to-end SSL encryption. Backend servers use self-signed certificates. Users report SSL/TLS errors. What should you configure to resolve this?",
+          "options": [
+            "Upload the backend server certificates to Application Gateway",
+            "Configure HTTP health probes instead of HTTPS",
+            "Enable SSL certificate validation bypass",
+            "Use Azure Key Vault integration for certificate management"
+          ],
+          "correct": 0,
+          "explanation": "For end-to-end SSL with self-signed certificates, Application Gateway needs the backend certificates uploaded as trusted root certificates to validate the backend SSL connections.",
+          "reasoning": {
+            "correct": "When using end-to-end SSL encryption with self-signed certificates on backend servers, Application Gateway must validate these certificates. Since self-signed certificates aren't trusted by default, you need to upload the backend server certificates (or their root CA) to Application Gateway as authentication certificates or trusted root certificates.",
+            "why_others_wrong": {
+              "1": "Changing to HTTP health probes doesn't solve the SSL/TLS connection issues for actual traffic and reduces security.",
+              "2": "SSL certificate validation bypass is not a standard Application Gateway feature and would compromise security.",
+              "3": "Key Vault integration helps with frontend certificate management but doesn't resolve backend certificate validation issues."
+            }
+          },
+          "reference": {
+            "title": "Application Gateway end-to-end SSL",
+            "url": "https://docs.microsoft.com/en-us/azure/application-gateway/ssl-overview"
+          }
+        },
+        {
+          "id": 79,
+          "topic": "monitoring",
+          "module": "Azure Monitor",
+          "category": "Custom Metrics",
+          "type": "single",
+          "question": "You need to create custom alerts based on application-specific metrics that are not available in Azure Monitor by default. Your application is running on Azure VMs. What is the most efficient approach?",
+          "options": [
+            "Use Azure Monitor REST API to send custom metrics",
+            "Install Azure Monitor Agent and configure custom performance counters",
+            "Use Application Insights SDK to send custom telemetry",
+            "Configure Log Analytics workspace with custom logs"
+          ],
+          "correct": 1,
+          "explanation": "Azure Monitor Agent with custom performance counters provides the most efficient and integrated way to collect application-specific metrics from VMs and use them for alerting.",
+          "reasoning": {
+            "correct": "Azure Monitor Agent (AMA) can be configured to collect custom performance counters from Windows or custom metrics from Linux applications. These metrics are automatically integrated into Azure Monitor metrics store, allowing for standard metric alerts, dashboards, and analysis. This provides the most seamless integration with Azure Monitor's alerting capabilities.",
+            "why_others_wrong": {
+              "0": "REST API works but requires more development effort and doesn't provide the same level of integration as native agent-based collection.",
+              "2": "Application Insights is primarily for web applications and provides different telemetry types, not VM-based custom metrics for infrastructure alerting.",
+              "3": "Log Analytics custom logs are for log-based data, not metrics, and would require log-based alerts which are less efficient than metric alerts."
+            }
+          },
+          "reference": {
+            "title": "Azure Monitor Agent overview",
+            "url": "https://docs.microsoft.com/en-us/azure/azure-monitor/agents/azure-monitor-agent-overview"
+          }
+        },
+        {
+          "id": 80,
+          "topic": "networking",
+          "module": "Azure Firewall",
+          "category": "High Availability",
+          "type": "multiple",
+          "question": "You are designing a highly available Azure Firewall deployment for a mission-critical application. Which configurations should you implement? (Select all that apply)",
+          "options": [
+            "Deploy Azure Firewall across multiple Availability Zones",
+            "Configure multiple public IP addresses for SNAT scaling",
+            "Implement Azure Firewall Manager for centralized policy management",
+            "Use multiple Azure Firewall instances with load balancer",
+            "Configure forced tunneling for hybrid connectivity"
+          ],
+          "correct": [0, 1, 2],
+          "explanation": "Availability Zones provide zone redundancy, multiple public IPs prevent SNAT exhaustion, and Firewall Manager enables centralized management. Multiple instances with load balancer is not a supported pattern.",
+          "reasoning": {
+            "correct": "Deploying across Availability Zones ensures the firewall survives zone failures. Multiple public IP addresses prevent SNAT port exhaustion and provide better outbound connectivity scaling. Azure Firewall Manager provides centralized policy management across multiple firewalls and enables easier maintenance and consistency.",
+            "why_others_wrong": {
+              "3": "Azure Firewall doesn't support deployment behind a load balancer - it's designed to be zone-redundant natively. Multiple firewall instances would be in different VNets or regions, not load-balanced.",
+              "4": "Forced tunneling is a specific configuration for routing internet traffic through on-premises, not a high availability feature."
+            }
+          },
+          "reference": {
+            "title": "Azure Firewall availability zones",
+            "url": "https://docs.microsoft.com/en-us/azure/firewall/deploy-availability-zone-powershell"
+          }
+        },
+        {
+          "id": 81,
+          "topic": "networking",
+          "module": "Virtual Network",
+          "category": "IP Address Management",
+          "type": "single",
+          "question": "You need to implement a solution where multiple VNets can share a common set of IP addresses for outbound internet connectivity, but each VNet should maintain its own private IP space. What should you implement?",
+          "options": [
+            "VNet peering with shared NAT Gateway",
+            "Hub-and-spoke topology with Azure Firewall",
+            "Azure Virtual WAN with shared services",
+            "Virtual Network NAT with multiple VNets"
+          ],
+          "correct": 1,
+          "explanation": "Hub-and-spoke topology with Azure Firewall allows multiple spoke VNets to share common outbound IP addresses while maintaining separate private IP spaces.",
+          "reasoning": {
+            "correct": "In a hub-and-spoke topology with Azure Firewall, each spoke VNet maintains its own private IP address space but routes outbound traffic through the hub VNet where Azure Firewall provides NAT functionality using shared public IP addresses. This centralizes outbound connectivity while preserving network isolation.",
+            "why_others_wrong": {
+              "0": "NAT Gateway cannot be directly shared across multiple VNets - each NAT Gateway is associated with specific subnets within a single VNet.",
+              "2": "Virtual WAN provides optimized connectivity but doesn't specifically address the requirement for shared outbound IP addresses.",
+              "3": "Virtual Network NAT is configured per VNet/subnet and doesn't provide cross-VNet IP sharing capabilities."
+            }
+          },
+          "reference": {
+            "title": "Hub-spoke network topology",
+            "url": "https://docs.microsoft.com/en-us/azure/architecture/reference-architectures/hybrid-networking/hub-spoke"
+          }
+        },
+        {
+          "id": 82,
+          "topic": "storage",
+          "module": "Backup and Recovery",
+          "category": "Cross-Region Recovery",
+          "type": "multiple",
+          "question": "Your organization requires the ability to recover critical data in a different Azure region in case of a regional disaster. Which storage replication and backup strategies should you implement? (Select all that apply)",
+          "options": [
+            "Geo-redundant storage (GRS) for automatic cross-region replication",
+            "Azure Backup with cross-region restore enabled",
+            "Azure Site Recovery for VM replication",
+            "Read-access geo-redundant storage (RA-GRS) for read access to secondary region",
+            "Zone-redundant storage (ZRS) for local high availability"
+          ],
+          "correct": [0, 1, 2, 3],
+          "explanation": "GRS provides cross-region replication, Azure Backup with cross-region restore enables recovery in secondary regions, Site Recovery replicates VMs, and RA-GRS provides read access. ZRS only provides local redundancy.",
+          "reasoning": {
+            "correct": "GRS automatically replicates data to a secondary region for disaster recovery. Azure Backup with cross-region restore allows restoring backups in the secondary region. Azure Site Recovery provides VM replication and orchestrated failover to secondary regions. RA-GRS provides the same cross-region protection as GRS plus read access to the secondary region during normal operations.",
+            "why_others_wrong": {
+              "4": "ZRS provides high availability within a single region across availability zones but doesn't provide cross-region disaster recovery capabilities."
+            }
+          },
+          "reference": {
+            "title": "Azure storage redundancy",
+            "url": "https://docs.microsoft.com/en-us/azure/storage/common/storage-redundancy"
+          }
+        },
+        {
+          "id": 83,
+          "topic": "networking",
+          "module": "Private Endpoints",
+          "category": "DNS Integration",
+          "type": "single",
+          "question": "You have deployed private endpoints for Azure Storage in your VNet. Applications can connect using the private IP, but DNS resolution still returns the public IP address. What is the most likely cause?",
+          "options": [
+            "Private endpoint is not properly linked to the storage account",
+            "Private DNS zone is not linked to the VNet",
+            "Network security group is blocking DNS traffic",
+            "Azure DNS is caching the old public IP address"
+          ],
+          "correct": 1,
+          "explanation": "When private endpoints work with IP addresses but DNS resolution returns public IPs, the private DNS zone is typically not linked to the VNet or the A record is missing.",
+          "reasoning": {
+            "correct": "Private endpoints automatically create private DNS zones (like privatelink.blob.core.windows.net) with A records pointing to the private endpoint's IP address. However, for VMs in the VNet to resolve these private DNS records, the private DNS zone must be linked to the VNet. Without this link, DNS queries will resolve to the public IP address.",
+            "why_others_wrong": {
+              "0": "If the private endpoint wasn't properly linked, applications wouldn't be able to connect using the private IP address at all.",
+              "2": "NSG rules affect network connectivity but don't typically block DNS resolution unless specifically configured to do so.",
+              "3": "DNS caching would eventually expire and refresh, and this is more likely a configuration issue than a caching problem."
+            }
+          },
+          "reference": {
+            "title": "Private endpoint DNS configuration",
+            "url": "https://docs.microsoft.com/en-us/azure/private-link/private-endpoint-dns"
+          }
+        },
+        {
+          "id": 84,
+          "topic": "compute",
+          "module": "Container Instances",
+          "category": "Networking",
+          "type": "single",
+          "question": "You need to deploy Azure Container Instances that can communicate with resources in your existing VNet while also having outbound internet access. The containers should not be directly accessible from the internet. What should you configure?",
+          "options": [
+            "Deploy ACI with VNet integration and public IP assignment",
+            "Deploy ACI with VNet integration and NAT Gateway for outbound access",
+            "Use Azure Container Apps with private networking",
+            "Deploy ACI in a subnet with Network Security Group restrictions"
+          ],
+          "correct": 1,
+          "explanation": "VNet integration places ACI in your private network, while NAT Gateway provides secure outbound internet access without exposing containers to inbound traffic.",
+          "reasoning": {
+            "correct": "VNet integration allows Azure Container Instances to be deployed into a subnet in your VNet, enabling private communication with other resources. NAT Gateway provides outbound internet access for the subnet without requiring public IP addresses on the containers, maintaining security while enabling required connectivity.",
+            "why_others_wrong": {
+              "0": "Public IP assignment would make containers directly accessible from the internet, violating the security requirement.",
+              "2": "Container Apps is a different service and wouldn't address the specific ACI requirement in this scenario.",
+              "3": "NSG restrictions alone don't provide outbound internet access - they only filter traffic but don't enable connectivity that doesn't exist."
+            }
+          },
+          "reference": {
+            "title": "Azure Container Instances VNet integration",
+            "url": "https://docs.microsoft.com/en-us/azure/container-instances/container-instances-vnet"
+          }
+        },
+        {
+          "id": 85,
+          "topic": "networking",
+          "module": "Azure Front Door",
+          "category": "Security",
+          "type": "multiple",
+          "question": "You are implementing Azure Front Door with Web Application Firewall for a global web application. Which security features should you configure? (Select all that apply)",
+          "options": [
+            "Rate limiting rules to prevent abuse",
+            "Geo-filtering to block traffic from specific countries",
+            "Custom rules based on IP addresses and HTTP headers",
+            "OWASP rule sets for common web vulnerabilities",
+            "DDoS protection for backend servers"
+          ],
+          "correct": [0, 1, 2, 3],
+          "explanation": "Rate limiting, geo-filtering, custom rules, and OWASP rule sets are all WAF features. DDoS protection is automatically provided by Azure platform, not a WAF configuration.",
+          "reasoning": {
+            "correct": "Azure Front Door WAF supports rate limiting to prevent abuse and bot attacks, geo-filtering to allow or block traffic from specific countries, custom rules for application-specific security logic, and OWASP Core Rule Set for protection against common web vulnerabilities like SQL injection and XSS.",
+            "why_others_wrong": {
+              "4": "DDoS protection is automatically provided by the Azure platform for all Front Door deployments and is not a configurable WAF feature. Backend servers are protected by Front Door's inherent DDoS protection."
+            }
+          },
+          "reference": {
+            "title": "Azure Front Door WAF",
+            "url": "https://docs.microsoft.com/en-us/azure/web-application-firewall/afds/afds-overview"
+          }
+        },
+        {
+          "id": 86,
+          "topic": "identity",
+          "module": "Azure AD Connect",
+          "category": "Hybrid Identity",
+          "type": "single",
+          "question": "Your organization has multiple on-premises Active Directory forests that need to synchronize with Azure AD. Some users exist in multiple forests with different attributes. What Azure AD Connect configuration should you implement?",
+          "options": [
+            "Single Azure AD Connect instance with multiple forest connectors",
+            "Multiple Azure AD Connect instances, one per forest",
+            "Azure AD Connect cloud sync for each forest",
+            "Federated identity with ADFS for each forest"
+          ],
+          "correct": 0,
+          "explanation": "A single Azure AD Connect instance can connect to multiple forests and handle attribute merging for users that exist across forests, providing centralized identity management.",
+          "reasoning": {
+            "correct": "Azure AD Connect supports multi-forest topologies through a single instance with multiple forest connectors. It can handle complex scenarios where users exist in multiple forests by merging attributes and maintaining a single identity in Azure AD. This approach provides centralized management and consistent synchronization rules.",
+            "why_others_wrong": {
+              "1": "Multiple Azure AD Connect instances would create conflicts when trying to synchronize the same users from different forests to the same Azure AD tenant.",
+              "2": "Azure AD Connect cloud sync is simpler but doesn't handle complex multi-forest scenarios with overlapping users as effectively as the full Azure AD Connect.",
+              "3": "ADFS provides federation but doesn't address the synchronization and attribute merging requirements for users across multiple forests."
+            }
+          },
+          "reference": {
+            "title": "Azure AD Connect multi-forest",
+            "url": "https://docs.microsoft.com/en-us/azure/active-directory/hybrid/plan-connect-topologies"
+          }
+        },
+        {
+          "id": 87,
+          "topic": "networking",
+          "module": "Service Endpoints",
+          "category": "Security Configuration",
+          "type": "single",
+          "question": "You have enabled service endpoints for Azure Storage on a subnet, but VMs in that subnet still cannot access the storage account. The storage account firewall is configured to allow the VNet. What additional configuration is required?",
+          "options": [
+            "Add the specific subnet to the storage account firewall rules",
+            "Configure route tables to direct storage traffic through service endpoints",
+            "Enable service endpoint policy on the subnet",
+            "Add service endpoint delegation to the subnet"
+          ],
+          "correct": 0,
+          "explanation": "When using service endpoints, you must explicitly add the subnet (not just the VNet) to the storage account firewall rules to allow access from that specific subnet.",
+          "reasoning": {
+            "correct": "Service endpoints require specific subnet-level configuration in the storage account firewall. Even if service endpoints are enabled on the subnet, the storage account firewall must explicitly allow that specific subnet. VNet-level permission is not sufficient - you need to add the individual subnet to the storage account's network access rules.",
+            "why_others_wrong": {
+              "1": "Service endpoints handle routing automatically - no manual route table configuration is needed.",
+              "2": "Service endpoint policies are used to restrict which storage accounts can be accessed, not to enable basic access.",
+              "3": "Service endpoint delegation is for different scenarios (like SQL Managed Instance) and not required for storage service endpoints."
+            }
+          },
+          "reference": {
+            "title": "Storage account service endpoints",
+            "url": "https://docs.microsoft.com/en-us/azure/storage/common/storage-network-security"
+          }
+        },
+        {
+          "id": 88,
+          "topic": "monitoring",
+          "module": "Azure Monitor",
+          "category": "Workbooks",
+          "type": "single",
+          "question": "You need to create a custom dashboard that combines metrics from multiple Azure services, includes interactive parameters, and supports drill-down capabilities. Which Azure Monitor feature should you use?",
+          "options": [
+            "Azure Dashboards with metric charts",
+            "Azure Monitor Workbooks",
+            "Log Analytics dashboard",
+            "Application Insights dashboard"
+          ],
+          "correct": 1,
+          "explanation": "Azure Monitor Workbooks provide interactive, customizable reports that can combine multiple data sources with parameters and drill-down capabilities.",
+          "reasoning": {
+            "correct": "Azure Monitor Workbooks are designed for interactive reporting and analysis. They support combining metrics and logs from multiple services, interactive parameters that can filter data dynamically, drill-down capabilities through linked charts and queries, and rich visualization options. They're perfect for complex, interactive dashboards.",
+            "why_others_wrong": {
+              "0": "Azure Dashboards provide basic metric visualization but lack the interactive parameters and advanced drill-down capabilities.",
+              "1": "Log Analytics dashboards are primarily for log-based data and don't integrate metrics as seamlessly as Workbooks.",
+              "3": "Application Insights dashboards are specific to Application Insights data and don't support multi-service scenarios as comprehensively."
+            }
+          },
+          "reference": {
+            "title": "Azure Monitor Workbooks",
+            "url": "https://docs.microsoft.com/en-us/azure/azure-monitor/visualize/workbooks-overview"
+          }
+        },
+        {
+          "id": 89,
+          "topic": "networking",
+          "module": "Network Virtual Appliance",
+          "category": "Routing and Connectivity",
+          "type": "single",
+          "question": "You deployed a network virtual appliance (NVA) in your hub VNet to inspect traffic between spoke VNets. Traffic between spokes is not flowing through the NVA despite correct route table configurations. What is the most likely missing configuration?",
+          "options": [
+            "IP forwarding is not enabled on the NVA network interface",
+            "Network security groups are blocking traffic to the NVA",
+            "The NVA subnet does not have a route to the spokes",
+            "BGP is not configured on the NVA"
+          ],
+          "correct": 0,
+          "explanation": "IP forwarding must be enabled on the NVA's network interface for it to route traffic between different subnets that it's not directly connected to.",
+          "reasoning": {
+            "correct": "Azure network interfaces have IP forwarding disabled by default for security reasons. When deploying an NVA that needs to route traffic between different networks (like spoke VNets), you must explicitly enable IP forwarding on the NVA's network interface. Without this, the NVA will receive traffic but cannot forward it to other destinations.",
+            "why_others_wrong": {
+              "1": "NSG blocking would typically generate logs and cause connectivity failures rather than traffic simply not flowing through the NVA.",
+              "2": "If route tables are configured correctly, the NVA subnet routing should be working. This is more likely an IP forwarding issue.",
+              "3": "BGP is not required for basic NVA routing functionality in hub-spoke topologies - static routes via route tables are sufficient."
+            }
+          },
+          "reference": {
+            "title": "Enable IP forwarding",
+            "url": "https://docs.microsoft.com/en-us/azure/virtual-network/virtual-network-network-interface#enable-or-disable-ip-forwarding"
+          }
+        },
+        {
+          "id": 90,
+          "topic": "backup",
+          "module": "Azure Site Recovery",
+          "category": "Disaster Recovery Planning",
+          "type": "multiple",
+          "question": "You are implementing Azure Site Recovery for disaster recovery of on-premises VMware VMs to Azure. Which components are required? (Select all that apply)",
+          "options": [
+            "Configuration server on-premises",
+            "Process server for data replication",
+            "Master target server in Azure",
+            "Mobility service on protected VMs",
+            "Recovery Services vault in Azure"
+          ],
+          "correct": [0, 1, 3, 4],
+          "explanation": "VMware to Azure replication requires configuration server, process server, mobility service, and Recovery Services vault. Master target server is not needed for Azure as the target.",
+          "reasoning": {
+            "correct": "Configuration server coordinates replication and manages communication with Azure. Process server handles replication data, caching, compression, and encryption. Mobility service must be installed on each VM to capture and send replication data. Recovery Services vault stores replication policies and manages recovery points in Azure.",
+            "why_others_wrong": {
+              "2": "Master target server is used for VMware-to-VMware replication scenarios. When replicating to Azure, Azure storage acts as the target, eliminating the need for a separate master target server."
+            }
+          },
+          "reference": {
+            "title": "VMware to Azure Site Recovery",
+            "url": "https://docs.microsoft.com/en-us/azure/site-recovery/vmware-azure-architecture"
+          }
+        },
+        {
+          "id": 91,
+          "topic": "networking",
+          "module": "Azure Bastion",
+          "category": "Advanced Configuration",
+          "type": "single",
+          "question": "You need to enable file transfer capabilities and support for native RDP/SSH clients when using Azure Bastion. Which Bastion SKU and configuration should you implement?",
+          "options": [
+            "Basic SKU with custom port configuration",
+            "Standard SKU with native client support enabled",
+            "Premium SKU with file transfer extensions",
+            "Standard SKU with file upload/download feature enabled"
+          ],
+          "correct": 1,
+          "explanation": "Standard SKU supports native client connections and file transfers, while Basic SKU only supports browser-based connections.",
+          "reasoning": {
+            "correct": "Azure Bastion Standard SKU provides advanced features including support for native RDP and SSH clients, file upload/download capabilities, and other enhanced features. The native client support allows users to connect using their local RDP or SSH clients while still benefiting from Bastion's security.",
+            "why_others_wrong": {
+              "0": "Basic SKU only supports browser-based connections and doesn't provide file transfer or native client capabilities.",
+              "2": "There is no Premium SKU for Azure Bastion - Standard is the highest tier available.",
+              "3": "While Standard SKU does support file upload/download, the key differentiator mentioned in the question is native client support, which is the primary feature that enables both file transfer and native client connectivity."
+            }
+          },
+          "reference": {
+            "title": "Azure Bastion SKUs and features",
+            "url": "https://docs.microsoft.com/en-us/azure/bastion/bastion-overview"
+          }
+        },
+        {
+          "id": 92,
+          "topic": "storage",
+          "module": "Azure Files",
+          "category": "Performance Optimization",
+          "type": "multiple",
+          "question": "You have an Azure Files share that experiences performance issues during peak usage. Which optimization strategies should you consider? (Select all that apply)",
+          "options": [
+            "Upgrade to Premium Files for higher IOPS and throughput",
+            "Enable large file shares for increased capacity and performance",
+            "Implement Azure File Sync for local caching",
+            "Configure multiple storage accounts for load distribution",
+            "Use SMB Multichannel for improved bandwidth utilization"
+          ],
+          "correct": [0, 1, 2, 4],
+          "explanation": "Premium Files, large file shares, File Sync caching, and SMB Multichannel all improve performance. Multiple storage accounts don't directly improve single share performance.",
+          "reasoning": {
+            "correct": "Premium Files provides significantly higher IOPS and throughput with SSD-based storage. Large file shares increase both capacity and performance limits. Azure File Sync provides local caching to reduce latency for frequently accessed files. SMB Multichannel uses multiple network connections to improve bandwidth utilization and performance.",
+            "why_others_wrong": {
+              "3": "Multiple storage accounts can help with overall scalability but don't improve the performance of a single Azure Files share. This approach adds complexity without directly addressing the performance issue of the specific share."
+            }
+          },
+          "reference": {
+            "title": "Azure Files performance optimization",
+            "url": "https://docs.microsoft.com/en-us/azure/storage/files/storage-files-scale-targets"
+          }
+        },
+        {
+          "id": 93,
+          "topic": "networking",
+          "module": "Load Balancer",
+          "category": "Troubleshooting",
+          "type": "single",
+          "question": "Your Standard Load Balancer health probes are failing, but you can manually connect to the backend VMs on the probe port. The VMs are in different Availability Zones. What is the most likely cause?",
+          "options": [
+            "Health probe interval is too frequent",
+            "Backend VMs are not responding to health probe requests correctly",
+            "Load balancer is experiencing cross-zone latency issues",
+            "Network security group is blocking the health probe source IP"
+          ],
+          "correct": 3,
+          "explanation": "Health probes originate from specific Azure infrastructure IP addresses that must be allowed in NSG rules for probes to succeed.",
+          "reasoning": {
+            "correct": "Azure Load Balancer health probes originate from the IP address 168.63.129.16 (Azure metadata service). If NSG rules don't explicitly allow traffic from this IP address to the health probe port, probes will fail even if manual connections to the VMs work from other sources. This is a common configuration oversight.",
+            "why_others_wrong": {
+              "0": "Probe interval frequency doesn't cause probe failures - it only affects how quickly failures are detected.",
+              "1": "If manual connections work on the same port, the VMs are likely responding correctly. The issue is more likely network-level blocking.",
+              "2": "Standard Load Balancer is designed to work across Availability Zones and cross-zone latency shouldn't cause health probe failures."
+            }
+          },
+          "reference": {
+            "title": "Load Balancer health probes",
+            "url": "https://docs.microsoft.com/en-us/azure/load-balancer/load-balancer-custom-probe-overview"
+          }
+        },
+        {
+          "id": 94,
+          "topic": "compute",
+          "module": "Azure Batch",
+          "category": "Scaling and Cost Optimization",
+          "type": "single",
+          "question": "You need to run large-scale parallel workloads that have variable compute requirements throughout the day. The workload can tolerate interruptions. What Azure Batch configuration provides the best cost optimization?",
+          "options": [
+            "Dedicated pools with auto-scale enabled",
+            "Low-priority pools with auto-scale enabled",
+            "Spot VMs with manual scaling",
+            "User subscription pools with reserved instances"
+          ],
+          "correct": 1,
+          "explanation": "Low-priority pools use Azure's excess capacity at significantly reduced cost and support auto-scaling, making them ideal for interruptible parallel workloads.",
+          "reasoning": {
+            "correct": "Low-priority VMs in Azure Batch can provide up to 80% cost savings compared to dedicated VMs by using Azure's excess capacity. Since the workload can tolerate interruptions and has variable requirements, auto-scaling with low-priority pools provides the optimal combination of cost savings and automatic resource management.",
+            "why_others_wrong": {
+              "0": "Dedicated pools provide guaranteed capacity but at full price, missing the cost optimization opportunity for interruptible workloads.",
+              "2": "Manual scaling requires human intervention and doesn't automatically adjust to variable workload demands.",
+              "3": "Reserved instances require long-term commitments and are better for predictable workloads, not variable parallel processing jobs."
+            }
+          },
+          "reference": {
+            "title": "Azure Batch low-priority VMs",
+            "url": "https://docs.microsoft.com/en-us/azure/batch/batch-low-pri-vms"
+          }
+        },
+        {
+          "id": 95,
+          "topic": "networking",
+          "module": "Azure Firewall",
+          "category": "Rule Processing",
+          "type": "single",
+          "question": "You have Azure Firewall with the following rule collections configured:\n- DNAT rules: Priority 100\n- Network rules: Priority 200\n- Application rules: Priority 300\n\nA packet matches a DNAT rule, a network rule, and an application rule. Which rule is processed and applied?",
+          "options": [
+            "The rule with the lowest priority number (DNAT rule)",
+            "All matching rules are applied in sequence",
+            "Only the DNAT rule is processed, others are ignored",
+            "The most specific rule is applied regardless of priority"
+          ],
+          "correct": 2,
+          "explanation": "Azure Firewall processes rule types in a specific order: DNAT, then Network, then Application. Once a DNAT rule matches, it's applied and processing stops.",
+          "reasoning": {
+            "correct": "Azure Firewall uses a hierarchical rule processing order: DNAT rules are processed first, then Network rules, then Application rules. When a packet matches a DNAT rule, the destination NAT is applied and the packet is allowed through the firewall. No further rule processing occurs for that packet, even if it would match network or application rules.",
+            "why_others_wrong": {
+              "0": "While DNAT rules do have the lowest priority number, the processing is based on rule type hierarchy, not priority numbers within collections.",
+              "1": "Azure Firewall uses deterministic rule processing - only one rule type is applied per packet, not sequential application.",
+              "3": "Rule specificity is not the determining factor - the rule type hierarchy (DNAT > Network > Application) determines processing order."
+            }
+          },
+          "reference": {
+            "title": "Azure Firewall rule processing",
+            "url": "https://docs.microsoft.com/en-us/azure/firewall/rule-processing"
+          }
+        },
+        {
+          "id": 96,
+          "topic": "identity",
+          "module": "Privileged Identity Management",
+          "category": "Just-in-Time Access",
+          "type": "multiple",
+          "question": "You are implementing Azure AD Privileged Identity Management (PIM) for administrative roles. Which features should you configure for enhanced security? (Select all that apply)",
+          "options": [
+            "Just-in-time activation with time-limited access",
+            "Multi-factor authentication requirement for role activation",
+            "Approval workflow for sensitive role activations",
+            "Regular access reviews for permanent assignments",
+            "Conditional Access policies for privileged accounts"
+          ],
+          "correct": [0, 1, 2, 3, 4],
+          "explanation": "All these features enhance PIM security: JIT activation reduces exposure time, MFA adds authentication security, approval workflows add oversight, access reviews ensure ongoing appropriateness, and Conditional Access adds policy-based controls.",
+          "reasoning": {
+            "correct": "Just-in-time activation minimizes the window of exposure for privileged access. MFA ensures strong authentication when activating roles. Approval workflows provide additional oversight for sensitive roles. Regular access reviews ensure that permanent assignments remain appropriate. Conditional Access policies can enforce additional security requirements for privileged accounts like device compliance or location restrictions.",
+            "why_others_wrong": {
+              "all_applicable": "This is a comprehensive security scenario where all options represent valid and recommended PIM security features."
+            }
+          },
+          "reference": {
+            "title": "Azure AD Privileged Identity Management",
+            "url": "https://docs.microsoft.com/en-us/azure/active-directory/privileged-identity-management/pim-configure"
+          }
+        },
+        {
+          "id": 97,
+          "topic": "networking",
+          "module": "Network Security Groups",
+          "category": "Advanced Filtering",
+          "type": "single",
+          "question": "You need to create an NSG rule that allows HTTPS traffic from any source but only to VMs that have a specific tag value. The environment has hundreds of VMs across multiple subnets. What is the most efficient approach?",
+          "options": [
+            "Create separate NSG rules for each VM's IP address",
+            "Use Application Security Groups to group tagged VMs",
+            "Create subnet-level NSG rules with IP address ranges",
+            "Use service tags to identify the target VMs"
+          ],
+          "correct": 1,
+          "explanation": "Application Security Groups allow logical grouping of VMs based on their role or characteristics, making it easy to apply security rules to tagged VMs regardless of their IP addresses or subnets.",
+          "reasoning": {
+            "correct": "Application Security Groups (ASGs) provide application-centric security by allowing you to group VMs logically rather than by IP address. You can assign VMs with specific tags to an ASG and then create NSG rules that reference the ASG as the destination. This approach scales well and is maintainable as VMs can be added/removed from ASGs without updating NSG rules.",
+            "why_others_wrong": {
+              "0": "Creating separate rules for each VM's IP address is not scalable and becomes unmanageable with hundreds of VMs.",
+              "2": "Subnet-level rules with IP ranges don't address the requirement to filter based on VM tags - they would apply to all VMs in those ranges.",
+              "3": "Service tags are predefined by Azure for Azure services and cannot be customized to identify VMs based on custom tags."
+            }
+          },
+          "reference": {
+            "title": "Application Security Groups",
+            "url": "https://docs.microsoft.com/en-us/azure/virtual-network/application-security-groups"
+          }
+        },
+        {
+          "id": 98,
+          "topic": "storage",
+          "module": "Azure Data Lake Storage",
+          "category": "Access Control",
+          "type": "single",
+          "question": "You have Azure Data Lake Storage Gen2 with hierarchical namespace enabled. You need to provide different levels of access to various teams: data engineers need full access, analysts need read access to specific folders, and auditors need read access to everything. What access control method should you implement?",
+          "options": [
+            "Azure RBAC roles only",
+            "POSIX ACLs only",
+            "Combination of Azure RBAC and POSIX ACLs",
+            "Shared access signatures for each team"
+          ],
+          "correct": 2,
+          "explanation": "Azure Data Lake Storage Gen2 with hierarchical namespace supports both Azure RBAC for broad permissions and POSIX ACLs for fine-grained, folder-level access control.",
+          "reasoning": {
+            "correct": "The optimal approach combines Azure RBAC for broad permissions (like Storage Blob Data Reader for auditors) with POSIX ACLs for fine-grained control (specific folder access for analysts). Azure RBAC provides efficient management of broad access patterns, while POSIX ACLs enable precise control over files and folders in the hierarchical namespace.",
+            "why_others_wrong": {
+              "0": "Azure RBAC alone cannot provide the fine-grained, folder-level access control needed for analysts who need access to specific folders only.",
+              "1": "POSIX ACLs alone would require managing permissions at the file/folder level for all users, which is complex for broad access patterns like 'read everything' for auditors.",
+              "3": "SAS tokens provide time-limited access but don't integrate with identity management and are harder to manage for ongoing team access requirements."
+            }
+          },
+          "reference": {
+            "title": "Data Lake Storage Gen2 access control",
+            "url": "https://docs.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-access-control"
+          }
+        },
+        {
+          "id": 99,
+          "topic": "networking",
+          "module": "Azure Traffic Manager",
+          "category": "Failover Configuration",
+          "type": "single",
+          "question": "You have a global application with primary deployment in East US and backup in West Europe. You want all traffic to go to East US normally, but automatically failover to West Europe if East US becomes unhealthy. Which Traffic Manager routing method should you use?",
+          "options": [
+            "Performance routing with priority configuration",
+            "Priority routing with East US as priority 1",
+            "Geographic routing with fallback to West Europe",
+            "Weighted routing with 100% weight to East US"
+          ],
+          "correct": 1,
+          "explanation": "Priority routing method sends all traffic to the highest priority (lowest number) healthy endpoint, with automatic failover to lower priority endpoints when the primary fails.",
+          "reasoning": {
+            "correct": "Priority routing method is designed exactly for this scenario. You assign priority 1 to East US (highest priority) and priority 2 to West Europe. All traffic flows to East US while it's healthy. When East US fails health checks, Traffic Manager automatically redirects all traffic to West Europe. When East US recovers, traffic automatically returns to it.",
+            "why_others_wrong": {
+              "0": "Performance routing directs users to the closest endpoint based on latency, not based on a primary/backup preference.",
+              "2": "Geographic routing distributes traffic based on user location, not health-based failover patterns.",
+              "3": "Weighted routing with 100% weight doesn't provide automatic failover - if the primary endpoint fails, there's no traffic distribution to the backup."
+            }
+          },
+          "reference": {
+            "title": "Traffic Manager routing methods",
+            "url": "https://docs.microsoft.com/en-us/azure/traffic-manager/traffic-manager-routing-methods"
+          }
+        },
+        {
+          "id": 100,
+          "topic": "monitoring",
+          "module": "Log Analytics",
+          "category": "Cost Optimization",
+          "type": "multiple",
+          "question": "You have a Log Analytics workspace that's generating high ingestion costs. Which strategies can help optimize costs? (Select all that apply)",
+          "options": [
+            "Configure data retention policies based on data type importance",
+            "Use sampling to reduce ingestion volume for high-volume data sources",
+            "Implement commitment tiers for predictable ingestion volumes",
+            "Archive old logs to cheaper storage tiers",
+            "Filter data at the source before sending to Log Analytics"
+          ],
+          "correct": [0, 1, 2, 3, 4],
+          "explanation": "All these strategies help optimize Log Analytics costs: retention policies reduce storage costs, sampling reduces ingestion, commitment tiers provide discounts, archiving moves old data to cheaper storage, and source filtering prevents unnecessary ingestion.",
+          "reasoning": {
+            "correct": "Data retention policies allow you to set different retention periods based on log importance. Sampling reduces the volume of ingested data while maintaining statistical relevance. Commitment tiers provide significant discounts for predictable workloads. Archive feature moves old logs to cheaper storage while maintaining query capability. Source-side filtering prevents unnecessary data from being ingested, reducing both ingestion and storage costs.",
+            "why_others_wrong": {
+              "all_applicable": "This is a comprehensive cost optimization scenario where all options represent valid strategies for reducing Log Analytics expenses."
+            }
+          },
+          "reference": {
+            "title": "Log Analytics cost optimization",
+            "url": "https://docs.microsoft.com/en-us/azure/azure-monitor/logs/cost-logs"
+          }
         }
       ]
     },
@@ -1356,6 +2881,7 @@
       "title": "Azure AZ-305 Practice Exam",
       "description": "Microsoft Certified: Azure Solutions Architect Expert",
       "totalQuestions": 150,
+      "networkingFocusPercentage": 50,
       "topics": [
         {
           "id": "identity",

@@ -60,14 +60,14 @@ export function useExamData(examId: string, questionCount?: number): UseExamData
 }
 
 interface UseAvailableExamsResult {
-  exams: Array<{ id: string; title: string; description: string; totalQuestions: number }>;
+  exams: Array<{ id: string; title: string; description: string; totalQuestions: number; networkingFocusPercentage?: number }>;
   loading: boolean;
   error: string | null;
   refetch: () => void;
 }
 
 export function useAvailableExams(): UseAvailableExamsResult {
-  const [exams, setExams] = useState<Array<{ id: string; title: string; description: string; totalQuestions: number }>>([]);
+  const [exams, setExams] = useState<Array<{ id: string; title: string; description: string; totalQuestions: number; networkingFocusPercentage?: number }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

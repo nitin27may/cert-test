@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useExamData } from '@/hooks/useExamData';
+import Header from '@/components/Header';
+import { sessionManager } from '@/lib/auth/session';
 
 export default function ExamSetupPage() {
   const params = useParams();
@@ -45,6 +47,22 @@ export default function ExamSetupPage() {
     };
     sessionStorage.setItem(`exam-config-${examId}`, JSON.stringify(config));
     
+    // Initialize exam progress in sessionManager
+    const initialProgress = {
+      currentQuestionIndex: 0,
+      userAnswers: {},
+      checkedAnswers: {},
+      timeRemaining: timeLimit * 60, // Convert minutes to seconds
+      startedAt: Date.now(),
+      status: 'in-progress',
+      progress: 1, // 1% to show as started
+      examId: examId,
+      examTitle: exam?.title || '',
+      config: config
+    };
+    
+    sessionManager.updateExamProgress(examId, initialProgress);
+    
     // Navigate to practice page
     router.push(`/exam/${examId}/practice`);
   };
@@ -67,6 +85,7 @@ export default function ExamSetupPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Header />
       <div className="max-w-4xl mx-auto p-8">
         <div className="bg-white rounded-lg shadow-lg p-8">
           {/* Header */}
