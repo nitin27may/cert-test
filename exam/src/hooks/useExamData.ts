@@ -10,7 +10,7 @@ interface UseExamDataResult {
   refetch: () => void;
 }
 
-export function useExamData(examId: string, questionCount?: number): UseExamDataResult {
+export function useExamData(examId: string, questionCount?: number, selectedTopics?: string[]): UseExamDataResult {
   const [exam, setExam] = useState<Exam | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,7 +26,7 @@ export function useExamData(examId: string, questionCount?: number): UseExamData
         throw new Error(`Exam '${examId}' not found`);
       }
 
-      const examQuestions = await examService.getExamQuestions(examId, questionCount);
+  const examQuestions = await examService.getExamQuestions(examId, questionCount, selectedTopics);
       
       setExam(examData);
       setQuestions(examQuestions);
@@ -43,7 +43,7 @@ export function useExamData(examId: string, questionCount?: number): UseExamData
     if (examId) {
       fetchExamData();
     }
-  }, [examId, questionCount]);
+  }, [examId, questionCount, JSON.stringify(selectedTopics)]);
 
   const refetch = () => {
     examService.clearCache();

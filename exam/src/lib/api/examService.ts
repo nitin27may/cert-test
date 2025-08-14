@@ -49,13 +49,18 @@ class ExamService {
     }
   }
 
-  async getExamQuestions(examId: string, count?: number): Promise<Question[]> {
+  async getExamQuestions(examId: string, count?: number, selectedTopics?: string[]): Promise<Question[]> {
     const exam = await this.getExamById(examId);
     if (!exam) {
       throw new Error(`Exam ${examId} not found`);
     }
 
     let questions = exam.questions;
+    
+    // Apply topic filtering if provided
+    if (selectedTopics && selectedTopics.length > 0) {
+      questions = questions.filter(q => selectedTopics.includes(q.topic));
+    }
     
     // Shuffle questions for variety
     questions = this.shuffleArray([...questions]);

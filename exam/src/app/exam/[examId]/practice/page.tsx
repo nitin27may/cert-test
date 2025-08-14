@@ -33,7 +33,7 @@ export default function ExamPracticePage() {
     setQuestionCount(examConfig.questionCount);
   }, [examId, router]);
 
-  const { exam, questions, loading: isLoading, error } = useExamData(examId, questionCount);
+  const { exam, questions, loading: isLoading, error } = useExamData(examId, questionCount, config?.selectedTopics);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<Record<number, number | number[]>>({});
   const [showExplanation, setShowExplanation] = useState(false);
@@ -320,7 +320,8 @@ export default function ExamPracticePage() {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6 border border-gray-100 dark:border-gray-700">
               <div className="mb-4">
                 <span className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs px-2 py-1 rounded-full">
-                  {currentQuestion.topic}
+                  {/* Find topic name from topic ID */}
+                  {exam?.topics.find(t => t.id === currentQuestion.topic)?.name || currentQuestion.topic}
                 </span>
               </div>
               

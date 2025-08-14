@@ -18,18 +18,18 @@ export default function ExamSetupPage() {
 
   useEffect(() => {
     if (exam) {
-      // Select all topics by default
-      setSelectedTopics(exam.topics.map(topic => topic.name));
+      // Select all topics by default - use topic IDs for consistency with question.topic
+      setSelectedTopics(exam.topics.map(topic => topic.id));
     } else if (error) {
       router.push('/');
     }
   }, [exam, error, router]);
 
-  const handleTopicToggle = (topicName: string) => {
+  const handleTopicToggle = (topicId: string) => {
     setSelectedTopics(prev => 
-      prev.includes(topicName)
-        ? prev.filter(t => t !== topicName)
-        : [...prev, topicName]
+      prev.includes(topicId)
+        ? prev.filter(t => t !== topicId)
+        : [...prev, topicId]
     );
   };
 
@@ -113,8 +113,8 @@ export default function ExamSetupPage() {
                   <label key={topic.id} className="flex items-start">
                     <input
                       type="checkbox"
-                      checked={selectedTopics.includes(topic.name)}
-                      onChange={() => handleTopicToggle(topic.name)}
+                      checked={selectedTopics.includes(topic.id)}
+                      onChange={() => handleTopicToggle(topic.id)}
                       className="mt-1 mr-3"
                     />
                     <div>

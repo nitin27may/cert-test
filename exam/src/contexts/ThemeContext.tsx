@@ -85,7 +85,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   // Prevent hydration mismatch
   if (!mounted) {
-    // Provide a default theme context during mounting
+    // Provide a default theme context during mounting without forcing light bg to avoid FOUC
     const defaultValue: ThemeContextType = {
       theme: 'light',
       toggleTheme: () => {},
@@ -94,7 +94,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     
     return (
       <ThemeContext.Provider value={defaultValue}>
-        <div className="min-h-screen bg-white">{children}</div>
+        {children}
       </ThemeContext.Provider>
     );
   }
