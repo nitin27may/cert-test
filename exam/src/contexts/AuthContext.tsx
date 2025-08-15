@@ -61,33 +61,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Listen for auth changes
     const { data: { subscription } } = AuthService.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state change:', event, session?.user?.email);
-        console.log('Auth state change - full session:', session);
+        
+        if (event === 'SIGNED_OUT') {
+          setSession(null)
+          setUser(null)
+          setLoading(false)
+          return
+        }
+        
         setSession(session)
         
         if (session?.user) {
           try {
-            console.log('AuthContext: Creating user object from session...');
             // Use the user data directly from the session instead of making another API call
             const user: AuthUser = {
               id: session.user.id,
               email: session.user.email!,
               user_metadata: session.user.user_metadata
             }
-            console.log('AuthContext: Created user object:', user);
-            console.log('AuthContext: Setting user after state change:', user.email);
             setUser(user)
-            console.log('AuthContext: User state updated successfully');
           } catch (error) {
             console.error('Error creating user object:', error)
             setUser(null)
           }
         } else {
-          console.log('No session, clearing user');
           setUser(null)
         }
         
-        console.log('AuthContext: Setting loading to false after state change');
         setLoading(false)
       }
     )
@@ -139,6 +139,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setLoading(true)
     try {
       await AuthService.signOut()
+      
+      // Manually clear the state immediately for better UX
+      setUser(null)
+      setSession(null)
+    } catch (error) {
+      console.error('AuthContext: SignOut error:', error)
+      // Still clear local state even on error
+      setUser(null)
+      setSession(null)
     } finally {
       setLoading(false)
     }

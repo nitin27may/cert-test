@@ -19,9 +19,6 @@ export function AuthGuard({
   const router = useRouter()
   const pathname = usePathname()
 
-  // Debug: Log auth state
-  console.log('AuthGuard - loading:', loading, 'user:', !!user, 'requireAuth:', requireAuth);
-
   useEffect(() => {
     if (loading) return
 

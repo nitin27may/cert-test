@@ -38,9 +38,6 @@ export default function Dashboard() {
   const { exams, loading: isLoading, error } = useAvailableExams();
   const [supabaseUser, setSupabaseUser] = useState<any>(null);
 
-  // Debug: Log the current state
-  console.log('Dashboard - isLoading:', isLoading, 'exams:', exams?.length, 'error:', error);
-
   useEffect(() => {
     // Get Supabase user session
     const loadSupabaseUser = async () => {
