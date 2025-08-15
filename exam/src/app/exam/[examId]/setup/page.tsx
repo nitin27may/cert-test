@@ -4,7 +4,25 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useExamData } from '@/hooks/useExamData';
 import Header from '@/components/Header';
-import { sessionManager } from '@/lib/auth/session';
+
+// Helper function to update exam progress in localStorage
+const updateExamProgress = (examId: string, progressData: any) => {
+  try {
+    const key = `examProgress_${examId}`;
+    const existingData = localStorage.getItem(key);
+    const currentData = existingData ? JSON.parse(existingData) : {};
+    
+    const updatedData = {
+      ...currentData,
+      ...progressData,
+      updatedAt: new Date().toISOString()
+    };
+    
+    localStorage.setItem(key, JSON.stringify(updatedData));
+  } catch (error) {
+    console.error('Error updating exam progress:', error);
+  }
+};
 
 export default function ExamSetupPage() {
   const params = useParams();
@@ -49,7 +67,7 @@ export default function ExamSetupPage() {
     };
     sessionStorage.setItem(`exam-config-${examId}`, JSON.stringify(config));
     
-    // Initialize exam progress in sessionManager
+    // Initialize exam progress in localStorage
     const initialProgress = {
       currentQuestionIndex: 0,
       userAnswers: {},
@@ -63,7 +81,7 @@ export default function ExamSetupPage() {
       config: config
     };
     
-    sessionManager.updateExamProgress(examId, initialProgress);
+    updateExamProgress(examId, initialProgress);
     
     // Navigate to practice page
     router.push(`/exam/${examId}/practice`);

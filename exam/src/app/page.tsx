@@ -3,28 +3,27 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useTheme } from '@/contexts/ThemeContext';
-import { sessionManager } from '@/lib/auth/session';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LandingPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
     setMounted(true);
-    const authStatus = sessionManager.isAuthenticated();
-    setIsAuthenticated(authStatus);
   }, []);
 
   // Redirect authenticated users to dashboard
   useEffect(() => {
-    if (mounted && isAuthenticated) {
-      window.location.href = '/dashboard';
+    if (!loading && user) {
+      // User is authenticated, could redirect to dashboard if desired
+      // For now, we'll just show the authenticated state
     }
-  }, [isAuthenticated, mounted]);
+  }, [user, loading]);
 
   // Prevent hydration mismatch
-  if (!mounted) {
+  if (!mounted || loading) {
     return (
       <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors"> <div className="flex items-center justify-center min-h-screen">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -159,7 +158,7 @@ export default function LandingPage() {
               </button>
 
               <Link
-                href={isAuthenticated ? "/dashboard" : "/login"}
+                href={user ? "/dashboard" : "/auth/login"}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
               >
                 Get Started
@@ -183,7 +182,7 @@ export default function LandingPage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
-                href={isAuthenticated ? "/exams" : "/login"}
+                href={user ? "/exams" : "/auth/login"}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all transform hover:scale-105 shadow-lg"
               >
                 Start Practicing Free
@@ -309,7 +308,7 @@ export default function LandingPage() {
                   </div>
                   
                   <Link
-                    href={isAuthenticated ? "/exams" : "/login"}
+                    href={user ? "/exams" : "/auth/login"}
                     className="block w-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-center py-3 px-4 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors font-medium"
                   >
                     Start Practice
@@ -331,7 +330,7 @@ export default function LandingPage() {
             Join thousands of successful candidates who used our platform to ace their Azure exams.
           </p>
           <Link
-            href={isAuthenticated ? "/exams" : "/login"}
+            href={user ? "/exams" : "/auth/login"}
             className="bg-white text-blue-600 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 transition-colors transform hover:scale-105 inline-block"
           >
             Start Your Free Practice Now

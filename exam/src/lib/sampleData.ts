@@ -40,6 +40,7 @@ export const sampleExams: Exam[] = [
         module: 'Virtual Networks',
         category: 'Virtual Networks',
         type: 'single',
+        difficulty: 'medium',
         question: 'You are planning a virtual network that must support 2000 virtual machines across multiple subnets. You want to minimize IP address waste while ensuring room for growth. What address space should you choose?',
         options: [
           '10.0.0.0/21 (2046 addresses)',
@@ -68,6 +69,7 @@ export const sampleExams: Exam[] = [
         module: 'Network Security',
         category: 'Network Security Groups',
         type: 'single',
+        difficulty: 'medium',
         question: 'You have a web application with the following NSG rules:\n- Priority 100: Allow HTTP (port 80) from Internet\n- Priority 200: Allow HTTPS (port 443) from Internet\n- Priority 300: Allow SSH (port 22) from 10.0.0.0/24\n- Priority 1000: Deny All\n\nYou need to block HTTP traffic from IP 203.0.113.50 while keeping HTTPS allowed. What should you do?',
         options: [
           'Create a rule with priority 50 to deny HTTP from 203.0.113.50',
@@ -96,6 +98,7 @@ export const sampleExams: Exam[] = [
         module: 'Load Balancing',
         category: 'Azure Load Balancer',
         type: 'multiple',
+        difficulty: 'difficult',
         question: 'You are configuring a Standard Load Balancer for a multi-tier application. Which of the following features are available with Standard Load Balancer? (Select all that apply)',
         options: [
           'Availability Zones support',
@@ -123,6 +126,7 @@ export const sampleExams: Exam[] = [
         module: 'Storage Accounts',
         category: 'Storage Accounts',
         type: 'single',
+        difficulty: 'easy',
         question: 'You need to create a storage account that provides the highest durability for critical business data and allows read access from a secondary region. Which replication option should you choose?',
         options: [
           'Locally Redundant Storage (LRS)',
@@ -151,6 +155,7 @@ export const sampleExams: Exam[] = [
         module: 'Virtual Machines',
         category: 'Availability',
         type: 'single',
+        difficulty: 'medium',
         question: 'You need to deploy VMs that can tolerate a complete datacenter failure within an Azure region. The VMs should be distributed across physical locations. What should you configure?',
         options: [
           'Availability Sets with 3 fault domains',
@@ -207,6 +212,7 @@ export const sampleExams: Exam[] = [
         module: 'Compute',
         category: 'Architecture Design',
         type: 'single',
+        difficulty: 'difficult',
         question: 'You are designing a multi-tier application architecture for Azure. The application requires high availability, scalability, and cost optimization. Which compute service combination would you recommend?',
         options: [
           'Azure Virtual Machines with Availability Sets',

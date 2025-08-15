@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useExamData } from '@/hooks/useExamData';
 import { Question } from '@/lib/types';
 import Header from '@/components/Header';
-import { sessionManager } from '@/lib/auth/session';
+import { useAuth } from '@/contexts/AuthContext';
+import { AuthService } from '@/lib/auth/authService';
 
 interface ExamConfig {
   selectedTopics: string[];
@@ -18,6 +19,44 @@ export default function ExamPracticePage() {
   const params = useParams();
   const router = useRouter();
   const examId = params.examId as string;
+  const { user } = useAuth();
+  
+  // Helper function to update exam progress in localStorage (can be moved to Supabase later)
+  const updateExamProgress = async (examId: string, progress: any) => {
+    try {
+      const session = await AuthService.getSession();
+      const userId = session?.user?.id || 'anonymous';
+      const userDataKey = `userData_${userId}`;
+      
+      const stored = localStorage.getItem(userDataKey);
+      const userData = stored ? JSON.parse(stored) : { examProgress: {}, examHistory: [] };
+      
+      userData.examProgress = userData.examProgress || {};
+      userData.examProgress[examId] = progress;
+      
+      localStorage.setItem(userDataKey, JSON.stringify(userData));
+    } catch (error) {
+      console.error('Error updating exam progress:', error);
+    }
+  };
+
+  const addExamToHistory = async (results: any) => {
+    try {
+      const session = await AuthService.getSession();
+      const userId = session?.user?.id || 'anonymous';
+      const userDataKey = `userData_${userId}`;
+      
+      const stored = localStorage.getItem(userDataKey);
+      const userData = stored ? JSON.parse(stored) : { examProgress: {}, examHistory: [] };
+      
+      userData.examHistory = userData.examHistory || [];
+      userData.examHistory.push(results);
+      
+      localStorage.setItem(userDataKey, JSON.stringify(userData));
+    } catch (error) {
+      console.error('Error adding exam to history:', error);
+    }
+  };
   
   // Load configuration from sessionStorage
   const [config, setConfig] = useState<ExamConfig | null>(null);
@@ -159,8 +198,8 @@ export default function ExamPracticePage() {
       // Save to sessionStorage for immediate restoration
       sessionStorage.setItem(`exam-progress-${examId}`, JSON.stringify(progress));
       
-      // Save to user data through sessionManager for dashboard tracking
-      sessionManager.updateExamProgress(examId, progress);
+      // Save to user data for dashboard tracking
+      updateExamProgress(examId, progress);
       
       router.push('/dashboard');
     }
@@ -241,10 +280,10 @@ export default function ExamPracticePage() {
       examTitle: exam?.title || ''
     };
     
-    sessionManager.updateExamProgress(examId, completedProgress);
+    updateExamProgress(examId, completedProgress);
     
     // Add to exam history
-    sessionManager.addExamToHistory(results);
+    addExamToHistory(results);
     
     // Clear sessionStorage for this exam
     sessionStorage.removeItem(`exam-progress-${examId}`);

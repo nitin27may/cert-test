@@ -3,15 +3,15 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import { useAvailableExams } from '@/hooks/useExamData';
-import { sessionManager } from '@/lib/auth/session';
 import { useTheme } from '@/contexts/ThemeContext';
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isExamDropdownOpen, setIsExamDropdownOpen] = useState(false);
-  const [userEmail, setUserEmail] = useState('');
   const [mounted, setMounted] = useState(false);
+  const { user, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const { exams } = useAvailableExams();
@@ -19,13 +19,17 @@ export default function Header() {
 
   useEffect(() => {
     setMounted(true);
-    const email = sessionManager.getCurrentUserEmail() || '';
-    setUserEmail(email);
   }, []);
 
-  const handleLogout = () => {
-    sessionManager.clearSession();
-    router.push('/');
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      router.push('/');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Still redirect on error
+      router.push('/');
+    }
   };
 
   const isActive = (path: string) => pathname === path;
@@ -165,7 +169,7 @@ export default function Header() {
               >
                 <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
                   <span className="text-white text-sm font-medium">
-                    {userEmail.charAt(0).toUpperCase()}
+                    {user?.email?.charAt(0).toUpperCase() || 'U'}
                   </span>
                 </div>
                 <svg className="w-4 h-4 ml-2 text-gray-500 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -176,7 +180,7 @@ export default function Header() {
               {isMenuOpen && (
                 <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-2 z-50">
                   <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
-                    {userEmail}
+                    {user?.email || 'User'}
                   </div>
                   <Link
                     href="/profile"

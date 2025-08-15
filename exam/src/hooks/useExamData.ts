@@ -73,16 +73,19 @@ export function useAvailableExams(): UseAvailableExamsResult {
 
   const fetchAvailableExams = async () => {
     try {
+      console.log('useAvailableExams: fetchAvailableExams called, setting loading to true');
       setLoading(true);
       setError(null);
 
       const availableExams = await examService.getAvailableExams();
+      console.log('useAvailableExams: Got exams:', availableExams?.length);
       setExams(availableExams);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load available exams';
       setError(errorMessage);
       console.error('Failed to fetch available exams:', err);
     } finally {
+      console.log('useAvailableExams: Setting loading to false in finally block');
       setLoading(false);
     }
   };

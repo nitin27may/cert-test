@@ -1,7 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { sessionManager } from '@/lib/auth/session';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 interface ThemeContextType {
   theme: 'light' | 'dark';
@@ -18,21 +17,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMounted(true);
     
-    // Get theme from user session, localStorage fallback, or system preference
+    // Get theme from localStorage or system preference
     let initialTheme: 'light' | 'dark' = 'light';
     
     try {
-      if (sessionManager.isAuthenticated()) {
-        initialTheme = sessionManager.getTheme();
+      // Check localStorage for theme preference
+      const storedTheme = localStorage.getItem('theme-preference') as 'light' | 'dark' | null;
+      if (storedTheme) {
+        initialTheme = storedTheme;
       } else {
-        // Check localStorage fallback for non-authenticated users
-        const storedTheme = localStorage.getItem('theme-preference') as 'light' | 'dark' | null;
-        if (storedTheme) {
-          initialTheme = storedTheme;
-        } else {
-          // Fall back to system preference
-          initialTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        }
+        // Fall back to system preference
+        initialTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       }
     } catch (error) {
       console.error('Error getting initial theme:', error);
@@ -66,12 +61,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     
     // Save to user session if authenticated
     try {
-      if (sessionManager.isAuthenticated()) {
-        sessionManager.setTheme(newTheme);
-      } else {
-        // Fallback to localStorage for non-authenticated users
-        localStorage.setItem('theme-preference', newTheme);
-      }
+      // Save theme preference to localStorage
+      localStorage.setItem('theme-preference', newTheme);
     } catch (error) {
       console.error('Error saving theme:', error);
       // Fallback to localStorage

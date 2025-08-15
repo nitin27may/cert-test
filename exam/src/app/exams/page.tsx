@@ -5,7 +5,26 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import { useAvailableExams } from '@/hooks/useExamData';
 import { storage } from '@/lib/utils';
-import { sessionManager, withAuth } from '@/lib/auth/session';
+
+// Helper function to get all exam progress from localStorage
+const getAllExamProgress = () => {
+  const progress: Record<string, any> = {};
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('examProgress_')) {
+        const examId = key.replace('examProgress_', '');
+        const data = localStorage.getItem(key);
+        if (data) {
+          progress[examId] = JSON.parse(data);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error loading exam progress:', error);
+  }
+  return progress;
+};
 
 export default function ExamsPage() {
   const [activeExams, setActiveExams] = useState<Record<string, any>>({});
@@ -13,22 +32,18 @@ export default function ExamsPage() {
   const { exams, loading: isLoading, error } = useAvailableExams();
 
   useEffect(() => {
-    withAuth(() => {
-      // Load active exams from user data through sessionManager
-      const userData = sessionManager.getUserData();
-      if (userData) {
-        // Convert exam progress to the format expected by the UI
-        const activeExamsData: Record<string, any> = {};
-        Object.entries(userData.examProgress || {}).forEach(([examId, progress]: [string, any]) => {
-          activeExamsData[examId] = {
-            progress: progress.progress || 0,
-            status: progress.status || 'not-started',
-            lastActivity: progress.lastUpdated || progress.startedAt
-          };
-        });
-        setActiveExams(activeExamsData);
-      }
+    // Load active exams from localStorage
+    const examProgressData = getAllExamProgress();
+    const activeExamsData: Record<string, any> = {};
+    
+    Object.entries(examProgressData).forEach(([examId, progress]: [string, any]) => {
+      activeExamsData[examId] = {
+        progress: progress.progress || 0,
+        status: progress.status || 'not-started',
+        lastActivity: progress.updatedAt || progress.startedAt
+      };
     });
+    setActiveExams(activeExamsData);
   }, []);
 
   const getExamStatus = (examId: string) => {
