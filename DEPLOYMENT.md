@@ -12,6 +12,8 @@ To enable deployment, you need to set up the following secrets in your GitHub re
 - `PROJECT_ID` - Your Vercel project ID
 
 
+
+
 ### Supabase Configuration
 - `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL (e.g., `https://hivjlytasszmvudvzyht.supabase.co`)
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Your Supabase anonymous key
