@@ -1,6 +1,0 @@
-{
-  "version": 2,
-  "buildCommand": "echo 'Skipping build, using GitHub Actions build'",
-  "outputDirectory": ".next",
-  "installCommand": "echo 'Skipping install, using GitHub Actions'"
-}
