@@ -30,7 +30,40 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      - name: Deploy to Vercel
+      - name: Create Vercel output structure
+        run: |
+          mkdir -p .vercel/output/static
+          mkdir -p .vercel/output/functions
+          
+          # Copy static files
+          cp -r .next/static .vercel/output/static/_next/
+          cp -r public/* .vercel/output/static/ 2>/dev/null || :
+          
+          # Copy server files for serverless functions
+          cp -r .next/server .vercel/output/functions/
+          
+          # Create config.json for Vercel
+          cat > .vercel/output/config.json << 'EOF'
+          {
+            "version": 3,
+            "routes": [
+              {
+                "src": "^/_next/static/(.*)$",
+                "headers": { "cache-control": "public, max-age=31536000, immutable" },
+                "dest": "/_next/static/$1"
+              },
+              {
+                "handle": "filesystem"
+              },
+              {
+                "src": "^/(.*)$",
+                "dest": "/index.js"
+              }
+            ]
+          }
+          EOF
+
+      - name: Deploy to Vercel (Production)
         uses: amondnet/vercel-action@v25
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
