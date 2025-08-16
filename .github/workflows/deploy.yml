@@ -13,17 +13,99 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Create Vercel output structure
+        run: |
+          mkdir -p .vercel/output/static
+          mkdir -p .vercel/output/functions
+          
+          # Copy static files
+          cp -r .next/static .vercel/output/static/_next/
+          if [ -d "public" ]; then
+            cp -r public/* .vercel/output/static/ 2>/dev/null || :
+          fi
+          
+          # Create index function for App Router
+          mkdir -p .vercel/output/functions/index.func
+          cat > .vercel/output/functions/index.func/.vc-config.json << 'EOF'
+          {
+            "runtime": "nodejs18.x",
+            "handler": "index.js",
+            "launcherType": "Nodejs",
+            "shouldAddHelpers": true
+          }
+          EOF
+          
+          # Create the main handler
+          cat > .vercel/output/functions/index.func/index.js << 'EOF'
+          const { NextRequest, NextResponse } = require('next/server');
+          const nextServer = require('next/dist/server/next-server').default;
+          
+          const server = new nextServer({
+            hostname: 'localhost',
+            port: 3000,
+            dir: process.cwd(),
+            dev: false,
+            customServer: false,
+          });
+          
+          module.exports = async (req, res) => {
+            await server.getRequestHandler()(req, res);
+          };
+          EOF
+          
+          # Copy Next.js server files
+          cp -r .next/server/* .vercel/output/functions/index.func/ 2>/dev/null || :
+          
+          # Create config.json for Vercel
+          cat > .vercel/output/config.json << 'EOF'
+          {
+            "version": 3,
+            "routes": [
+              {
+                "src": "^/_next/static/(.*)$",
+                "headers": { "cache-control": "public, max-age=31536000, immutable" },
+                "dest": "/_next/static/$1"
+              },
+              {
+                "handle": "filesystem"
+              },
+              {
+                "src": "^/(.*)$",
+                "dest": "/index"
+              }
+            ],
+            "functions": {
+              "index.func": {
+                "memory": 1024
+              }
+            }
+          }
+          EOF
+
       - name: Deploy to Vercel (Production)
         uses: amondnet/vercel-action@v25
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.ORG_ID }}
           vercel-project-id: ${{ secrets.PROJECT_ID }}
-          vercel-args: '--prod'
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          vercel-args: '--prebuilt --prod'
         if: github.ref == 'refs/heads/main'
 
       - name: Deploy Preview to Vercel
@@ -32,8 +114,5 @@ jobs:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.ORG_ID }}
           vercel-project-id: ${{ secrets.PROJECT_ID }}
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          vercel-args: '--prebuilt'
         if: github.event_name == 'pull_request'
