@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { AuthService, getAuthErrorMessage } from '../../../lib/auth/authService';
@@ -8,7 +8,7 @@ import type { AuthError } from '@supabase/supabase-js';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../contexts/AuthContext';
 
-export default function AuthLoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -298,5 +298,13 @@ export default function AuthLoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AuthLoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }
