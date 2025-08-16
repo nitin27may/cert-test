@@ -7,14 +7,15 @@ pnpm-debug.log*
 lerna-debug.log*
 
 # Next.js
-exam/.next/
-exam/out/
-exam/build/
-exam/dist/
+.next/
+out/
+build/
+dist/
 
 # Production builds
 build/
 dist/
+
 
 # Runtime data
 pids

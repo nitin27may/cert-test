@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { AuthService, getAuthErrorMessage } from '@/lib/auth/authService'
+import type { AuthError } from '@supabase/supabase-js'
 import { useTheme } from '@/contexts/ThemeContext'
 
 export default function SignUpPage() {
@@ -28,7 +29,7 @@ export default function SignUpPage() {
         if (session?.user) {
           router.push('/dashboard')
         }
-      } catch (error) {
+      } catch {
         // User not logged in, which is expected for signup page
       }
     }
@@ -55,8 +56,8 @@ export default function SignUpPage() {
       
       setMessage('Registration successful! Please check your email to confirm your account.')
       
-    } catch (error: any) {
-      setError(getAuthErrorMessage(error))
+    } catch (error) {
+      setError(getAuthErrorMessage(error as AuthError))
     } finally {
       setLoading(false)
     }
@@ -67,8 +68,8 @@ export default function SignUpPage() {
       setError('')
       await AuthService.signInWithGoogle()
       // OAuth redirect will handle navigation
-    } catch (error: any) {
-      setError(getAuthErrorMessage(error))
+    } catch (error) {
+      setError(getAuthErrorMessage(error as AuthError))
     }
   }
 

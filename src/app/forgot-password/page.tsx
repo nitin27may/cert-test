@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { AuthService, getAuthErrorMessage } from '@/lib/auth/authService'
+import type { AuthError } from '@supabase/supabase-js'
 import { useTheme } from '@/contexts/ThemeContext'
 
 export default function ForgotPasswordPage() {
@@ -33,8 +34,8 @@ export default function ForgotPasswordPage() {
       
       setMessage('Password reset email sent! Please check your inbox and follow the instructions.')
       
-    } catch (error: any) {
-      setError(getAuthErrorMessage(error))
+    } catch (error) {
+      setError(getAuthErrorMessage(error as AuthError))
     } finally {
       setLoading(false)
     }
@@ -75,7 +76,7 @@ export default function ForgotPasswordPage() {
           <p className={`mt-2 ${
             theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
           }`}>
-            Enter your email address and we'll send you a link to reset your password
+            Enter your email address and we&apos;ll send you a link to reset your password
           </p>
         </div>
 
@@ -146,7 +147,7 @@ export default function ForgotPasswordPage() {
           <p className={`text-sm ${
             theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
           }`}>
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link 
               href="/signup" 
               className="font-medium text-blue-600 hover:text-blue-500"

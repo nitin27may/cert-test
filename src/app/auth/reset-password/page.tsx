@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { AuthService, getAuthErrorMessage } from '@/lib/auth/authService'
+import type { AuthError } from '@supabase/supabase-js'
 import { useTheme } from '@/contexts/ThemeContext'
 
 export default function ResetPasswordPage() {
@@ -14,7 +15,6 @@ export default function ResetPasswordPage() {
   const [mounted, setMounted] = useState(false)
   
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { theme } = useTheme()
 
   useEffect(() => {
@@ -44,8 +44,8 @@ export default function ResetPasswordPage() {
         router.push('/dashboard')
       }, 2000)
       
-    } catch (error: any) {
-      setError(getAuthErrorMessage(error))
+    } catch (error) {
+      setError(getAuthErrorMessage(error as AuthError))
     } finally {
       setLoading(false)
     }

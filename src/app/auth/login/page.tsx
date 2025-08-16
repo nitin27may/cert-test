@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { AuthService, getAuthErrorMessage } from '../../../lib/auth/authService';
+import type { AuthError } from '@supabase/supabase-js';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../contexts/AuthContext';
 
@@ -13,7 +14,6 @@ export default function AuthLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [mounted, setMounted] = useState(false);
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { theme, toggleTheme } = useTheme();
   const { user, loading: authLoading, signIn: contextSignIn } = useAuth();
@@ -89,9 +89,9 @@ export default function AuthLoginPage() {
         }
       }, 1500);
       
-    } catch (error: any) {
+    } catch (error) {
       console.error('Login: Sign in error:', error);
-      setError(getAuthErrorMessage(error));
+      setError(getAuthErrorMessage(error as AuthError));
       setLoading(false); // Only set loading to false on error
     }
   };
@@ -101,8 +101,8 @@ export default function AuthLoginPage() {
       setError('');
       await AuthService.signInWithGoogle();
       // OAuth redirect will handle navigation
-    } catch (error: any) {
-      setError(getAuthErrorMessage(error));
+    } catch (error) {
+      setError(getAuthErrorMessage(error as AuthError));
     }
   };
 
@@ -277,7 +277,7 @@ export default function AuthLoginPage() {
           <p className={`text-sm ${
             theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
           }`}>
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link 
               href="/signup" 
               className="font-medium text-blue-600 hover:text-blue-500"
