@@ -378,6 +378,39 @@ export class SupabaseExamService {
   // SESSION OPERATIONS
   // =====================
 
+  async getUserActiveSessions(userId: string): Promise<ParsedUserExamSession[]> {
+    const { data, error } = await supabase
+      .from('user_exam_sessions')
+      .select(`
+        id,
+        user_id,
+        exam_id,
+        session_name,
+        status,
+        selected_topics,
+        question_limit,
+        total_questions,
+        current_question_index,
+        time_spent_seconds,
+        created_at,
+        updated_at,
+        last_activity
+      `)
+      .eq('user_id', userId)
+      .in('status', ['in_progress', 'paused'])
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new Error(`Failed to fetch user active sessions: ${error.message}`);
+    }
+
+    return (data || []).map(session => ({
+      ...session,
+      selected_topics: session.selected_topics ? JSON.parse(session.selected_topics) : [],
+      questions: [] // Questions are loaded separately when needed
+    }));
+  }
+
   async createSession(userId: string, sessionData: CreateSessionRequest): Promise<UserSessionResponse> {
     console.log('Creating session with data:', {
       examId: sessionData.exam_id,
@@ -830,11 +863,17 @@ export class SupabaseExamService {
       .from('exam_results')
       .select(`
         id,
+        session_id,
         exam_id,
+        total_questions,
+        correct_answers,
+        incorrect_answers,
+        unanswered_questions,
         score_percentage,
         pass_status,
         completed_at,
-        time_spent_seconds
+        time_spent_seconds,
+        average_time_per_question
       `)
       .eq('user_id', userId)
       .order('completed_at', { ascending: false });
@@ -854,12 +893,18 @@ export class SupabaseExamService {
 
     const results = (data || []).map(result => ({
       id: result.id,
+      session_id: result.session_id,
       exam_id: result.exam_id,
       exam_title: examTitleMap.get(result.exam_id) || 'Unknown Exam',
+      total_questions: result.total_questions,
+      correct_answers: result.correct_answers,
+      incorrect_answers: result.incorrect_answers,
+      unanswered_questions: result.unanswered_questions || 0,
       score_percentage: result.score_percentage,
       pass_status: result.pass_status,
       completed_at: result.completed_at,
-      time_spent_seconds: result.time_spent_seconds
+      time_spent_seconds: result.time_spent_seconds,
+      average_time_per_question: result.average_time_per_question || 0
     }));
 
     return { results };
@@ -1104,6 +1149,142 @@ export class SupabaseExamService {
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     return shuffled;
+  }
+
+  // Get detailed session information including questions and answers
+  async getSessionDetails(sessionId: string, userId: string): Promise<any> {
+    // First verify the session belongs to the user
+    const { data: session, error: sessionError } = await supabase
+      .from('user_exam_sessions')
+      .select(`
+        *,
+        exams:exams(id, title, description)
+      `)
+      .eq('id', sessionId)
+      .eq('user_id', userId)
+      .single();
+
+    if (sessionError || !session) {
+      throw new Error('Session not found or access denied');
+    }
+
+    // Get session questions with their order
+    const { data: sessionQuestions, error: questionsError } = await supabase
+      .from('session_questions')
+      .select(`
+        question_order,
+        questions:questions(
+          id,
+          question_text,
+          options,
+          correct_answers,
+          explanation,
+          reasoning,
+          topic_id,
+          module,
+          category,
+          type,
+          difficulty
+        )
+      `)
+      .eq('session_id', sessionId)
+      .order('question_order');
+
+    if (questionsError) {
+      throw new Error(`Failed to fetch session questions: ${questionsError.message}`);
+    }
+
+    // Get user answers for this session
+    const { data: userAnswers, error: answersError } = await supabase
+      .from('user_answers')
+      .select(`
+        question_id,
+        user_answer,
+        is_correct,
+        time_spent_seconds,
+        answered_at
+      `)
+      .eq('session_id', sessionId);
+
+    if (answersError) {
+      throw new Error(`Failed to fetch user answers: ${answersError.message}`);
+    }
+
+    // Get topics for context
+    const topicIds = [...new Set(sessionQuestions?.map(sq => {
+      const question = sq.questions as any;
+      return question?.topic_id;
+    }).filter(Boolean) || [])];
+    const { data: topics, error: topicsError } = await supabase
+      .from('topics')
+      .select('id, name')
+      .in('id', topicIds);
+
+    if (topicsError) {
+      console.warn('Failed to fetch topics:', topicsError);
+    }
+
+    const topicMap = new Map(topics?.map(t => [t.id, t.name]) || []);
+
+    // Combine all the data
+    const detailedSession = {
+      session: {
+        id: session.id,
+        exam_id: session.exam_id,
+        exam_title: session.exams?.title || 'Unknown Exam',
+        session_name: session.session_name,
+        status: session.status,
+        total_questions: session.total_questions,
+        questions_answered: session.questions_answered,
+        correct_answers: session.correct_answers,
+        score: session.score,
+        time_spent_seconds: session.time_spent_seconds,
+        start_time: session.start_time,
+        end_time: session.end_time,
+        last_activity: session.last_activity
+      },
+      questions: sessionQuestions?.map(sq => {
+        const question = Array.isArray(sq.questions) ? sq.questions[0] : sq.questions;
+        if (!question) return null;
+        
+        const userAnswer = userAnswers?.find(ua => ua.question_id === question.id);
+        const topicName = topicMap.get(question.topic_id) || 'Unknown Topic';
+        
+        return {
+          id: question.id,
+          order: sq.question_order,
+          question_text: question.question_text,
+          options: typeof question.options === 'string' ? JSON.parse(question.options) : question.options,
+          correct_answers: typeof question.correct_answers === 'string' ? JSON.parse(question.correct_answers) : question.correct_answers,
+          explanation: question.explanation,
+          reasoning: question.reasoning,
+          topic_id: question.topic_id,
+          topic_name: topicName,
+          module: question.module,
+          category: question.category,
+          type: question.type,
+          difficulty: question.difficulty,
+          user_answer: userAnswer?.user_answer ? 
+            (typeof userAnswer.user_answer === 'string' ? JSON.parse(userAnswer.user_answer) : userAnswer.user_answer) : 
+            null,
+          is_correct: userAnswer?.is_correct || null,
+          time_spent: userAnswer?.time_spent_seconds || 0,
+          answered_at: userAnswer?.answered_at || null
+        };
+      }).filter(Boolean) || [],
+      summary: {
+        total_questions: session.total_questions,
+        questions_answered: session.questions_answered,
+        correct_answers: session.correct_answers,
+        incorrect_answers: (session.questions_answered || 0) - (session.correct_answers || 0),
+        unanswered_questions: (session.total_questions || 0) - (session.questions_answered || 0),
+        accuracy: session.total_questions > 0 ? ((session.correct_answers || 0) / session.total_questions) * 100 : 0,
+        time_spent_minutes: Math.round((session.time_spent_seconds || 0) / 60),
+        average_time_per_question: session.questions_answered > 0 ? Math.round((session.time_spent_seconds || 0) / session.questions_answered) : 0
+      }
+    };
+
+    return detailedSession;
   }
 }
 

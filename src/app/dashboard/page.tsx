@@ -39,6 +39,7 @@ interface RecentResult {
   score: number;
   completedAt: string;
   timeSpent: number;
+  sessionId: string;
   improvement?: number;
 }
 
@@ -131,6 +132,7 @@ export default function EnhancedDashboard() {
             score: result.score_percentage,
             completedAt: result.completed_at,
             timeSpent: result.time_spent_seconds,
+            sessionId: result.session_id, // Assuming session_id is available in the result
             improvement: index > 0 ? result.score_percentage - resultsResponse.results[index].score_percentage : undefined
           }));
         
@@ -185,7 +187,8 @@ export default function EnhancedDashboard() {
               examTitle: result.exam_id, // Would be fetched from exams
               score: result.score_percentage,
               completedAt: result.completed_at,
-              timeSpent: result.time_spent_seconds
+              timeSpent: result.time_spent_seconds,
+              sessionId: result.session_id, // Assuming session_id is available in the result
             },
             ...prev.slice(0, 4)
           ]);
@@ -571,11 +574,18 @@ export default function EnhancedDashboard() {
                               {new Date(result.completedAt).toLocaleDateString()} • {formatTime(result.timeSpent)}
                             </p>
                           </div>
-                          <div className="text-right">
+                          <div className="flex items-center space-x-3">
                             <p className={`text-sm font-medium ${getScoreColor(result.score)} dark:text-white`}>
                               {result.score.toFixed(1)}%
                             </p>
                             {getImprovementIndicator(result.improvement)}
+                            <button
+                              onClick={() => router.push(`/exam-review/${result.sessionId}`)}
+                              className="px-3 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-md hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                              title="Review this exam"
+                            >
+                              Review
+                            </button>
                           </div>
                         </div>
                       ))}

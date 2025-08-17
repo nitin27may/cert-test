@@ -3,6 +3,9 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { ThemeScript } from "@/contexts/ThemeContext";
 
+// Import service worker manager (will auto-register)
+import '@/lib/utils/serviceWorker';
+
 export const metadata: Metadata = {
   title: "Azure Practice Exams",
   description: "Practice Azure certification exams with detailed explanations and progress tracking",

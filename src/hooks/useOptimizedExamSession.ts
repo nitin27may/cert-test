@@ -34,6 +34,8 @@ interface OptimizedExamSessionState {
   presences: UserPresenceData[];
   lastSyncTime: Date | null;
   totalQuestions: number;
+  isResuming: boolean;
+  retryCount: number;
 }
 
 interface OptimizedExamSessionActions {
@@ -50,6 +52,7 @@ interface OptimizedExamSessionActions {
   resetSession: () => void;
   forceSync: () => Promise<void>;
   retryConnection: () => Promise<void>;
+  retryFailedAnswers: () => Promise<void>;
 }
 
 export function useOptimizedExamSession(): [OptimizedExamSessionState, OptimizedExamSessionActions] {
@@ -66,7 +69,9 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
     progress: 0,
     presences: [],
     lastSyncTime: null,
-    totalQuestions: 0
+    totalQuestions: 0,
+    isResuming: false,
+    retryCount: 0
   });
 
   // Refs for managers and timers
@@ -76,7 +81,9 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
   const connectionMonitorRef = useRef<NodeJS.Timeout | null>(null);
   const lastActivityRef = useRef<Date>(new Date());
   const submitAnswerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const pendingAnswersRef = useRef<Map<number, { userAnswer: number[], timeSpent: number }>>(new Map());
+  const pendingAnswersRef = useRef<Map<number, { userAnswer: number[], timeSpent: number, retryCount: number }>>(new Map());
+  const failedAnswersRef = useRef<Map<number, { userAnswer: number[], timeSpent: number, error: string, retryCount: number }>>(new Map());
+  const isInitializedRef = useRef<boolean>(false);
 
   // Helper to update state with debouncing to prevent excessive updates
   const updateState = useCallback((updates: Partial<OptimizedExamSessionState> | ((prev: OptimizedExamSessionState) => OptimizedExamSessionState)) => {
@@ -85,6 +92,12 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
     } else {
       setState(prev => ({ ...prev, ...updates }));
     }
+  }, []);
+
+  // Calculate progress with proper error handling
+  const calculateProgress = useCallback((session: ParsedUserExamSession, answers: Map<number, ParsedUserAnswer>) => {
+    if (!session || !session.total_questions || session.total_questions === 0) return 0;
+    return Math.round((answers.size / session.total_questions) * 100);
   }, []);
 
   // Monitor connection status with reduced frequency
@@ -99,85 +112,58 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
       // Only update state if status actually changed
       setState(prev => {
         if (prev.connectionStatus !== status) {
-          let syncStatus = prev.syncStatus;
-          
-          // Update sync status based on connection
-          if (status === 'OPEN') {
-            syncStatus = 'synced';
-          } else if (status === 'CONNECTING') {
-            syncStatus = 'syncing';
-          } else {
-            syncStatus = 'offline';
-          }
-          
-          return {
-            ...prev,
-            connectionStatus: status,
-            syncStatus
-          };
+          return { ...prev, connectionStatus: status };
         }
         return prev;
       });
-    }, 2000); // Reduced frequency to every 2 seconds
+    }, 10000); // Check every 10 seconds instead of continuously
   }, []);
 
-  // Start time tracking with reduced frequency to prevent excessive updates
+  // Start time tracking with proper cleanup
   const startTimeTracking = useCallback(() => {
     if (timeTrackingTimerRef.current) {
       clearInterval(timeTrackingTimerRef.current);
     }
 
-    timeTrackingTimerRef.current = setInterval(async () => {
-      const now = new Date();
-      const timeDiff = Math.floor((now.getTime() - lastActivityRef.current.getTime()) / 1000);
-      
-      if (timeDiff > 0) {
-        updateState(prev => ({
-          ...prev,
-          timeSpent: prev.timeSpent + timeDiff
-        }));
-        lastActivityRef.current = now;
+    timeTrackingTimerRef.current = setInterval(() => {
+      updateState(prev => ({
+        ...prev,
+        timeSpent: prev.timeSpent + 1,
+        lastSyncTime: new Date()
+      }));
 
-        // Periodically persist time updates to DB (every 10 seconds to reduce calls)
-        timeUpdateCounterRef.current += timeDiff;
-        if (timeUpdateCounterRef.current >= 10 && state.session) {
-          try {
-            await supabaseExamService.updateSession(state.session.id, state.session.user_id, {
-              time_spent_seconds: state.timeSpent + timeDiff,
-              last_activity: now.toISOString()
-            } as any);
-            timeUpdateCounterRef.current = 0; // Reset counter only on success
-          } catch (err) {
-            // Non-fatal; keep local time running but don't reset counter to retry later
-          }
+      // Update time spent counter for periodic sync
+      timeUpdateCounterRef.current++;
+      if (timeUpdateCounterRef.current >= 30) { // Sync every 30 seconds
+        timeUpdateCounterRef.current = 0;
+        // Trigger background sync for time tracking
+        if (state.session) {
+          supabaseExamService.updateSession(state.session.id, state.session.user_id, {
+            time_spent_seconds: state.timeSpent + 1
+          }).catch(console.error); // Don't block UI for time updates
         }
       }
-    }, 5000); // Reduced to every 5 seconds instead of 1 second
-  }, [updateState]);
+    }, 1000);
+  }, [updateState, state.session, state.timeSpent]);
 
-  // Calculate progress
-  const calculateProgress = useCallback((session: ParsedUserExamSession, answers: Map<number, ParsedUserAnswer>) => {
-    if (!session || session.total_questions === 0) return 0;
-    return (answers.size / session.total_questions) * 100;
-  }, []);
-
-  // Setup real-time subscriptions for a session with stable dependencies
+  // Setup real-time sync with better error handling
   const setupRealtimeSync = useCallback(async (sessionId: string, userId: string) => {
     try {
-      // Cleanup any existing subscriptions first
-      await realtimeService.unsubscribeAll();
-
-      // Setup exam session subscription with automatic sync
+      console.log('Setting up real-time sync for session:', sessionId);
+      
+      // Subscribe to critical updates only
       await realtimeService.subscribeToExamSession(sessionId, userId, {
-        onSessionUpdate: (sessionUpdate) => {
+        onSessionUpdate: (session) => {
+          console.log('Session updated via real-time:', session);
           updateState(prev => ({
             ...prev,
-            session: prev.session ? { ...prev.session, ...sessionUpdate } : null,
+            session: { ...prev.session, ...session },
+            syncStatus: 'synced',
             lastSyncTime: new Date()
           }));
         },
-
         onAnswerUpdate: (answer) => {
+          console.log('Answer updated via real-time:', answer);
           updateState(prev => {
             const newAnswers = new Map(prev.answers);
             newAnswers.set(answer.question_id, answer);
@@ -185,17 +171,13 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
               ...prev,
               answers: newAnswers,
               progress: calculateProgress(prev.session!, newAnswers),
+              syncStatus: 'synced',
               lastSyncTime: new Date()
             };
           });
         },
-
-        onBroadcast: (data: SessionBroadcastData) => {
-          // Handle broadcast events like other users' actions silently
-        },
-
         onError: (error) => {
-          console.error('Real-time subscription error:', error);
+          console.error('Real-time sync error:', error);
           updateState({ 
             error: error.message,
             syncStatus: 'error'
@@ -217,10 +199,10 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
         updateState({ presences });
       });
 
-      // Setup auto-sync manager
+      // Setup auto-sync manager with longer intervals
       autoSyncManagerRef.current = realtimeService.createAutoSyncManager(sessionId, {
-        batchInterval: 5000, // Increased to 5 seconds to reduce calls
-        maxBatchSize: 10,    // Increased batch size
+        batchInterval: 10000, // 10 seconds to reduce calls
+        maxBatchSize: 20,     // Increased batch size
         onSyncError: (error) => {
           updateState({ 
             syncStatus: 'error',
@@ -254,7 +236,7 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
   // Create session with optimized dependencies
   const createSession = useCallback(async (userId: string, sessionData: CreateSessionRequest) => {
     try {
-      updateState({ isLoading: true, error: null });
+      updateState({ isLoading: true, error: null, isResuming: false });
 
       const response = await supabaseExamService.createSession(userId, sessionData);
       
@@ -271,26 +253,29 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
         currentQuestionIndex: 0,
         totalQuestions: response.session.total_questions,
         isLoading: false,
-        syncStatus: 'synced'
+        syncStatus: 'synced',
+        isResuming: false
       } as Partial<OptimizedExamSessionState>);
 
       // Start time tracking
       startTimeTracking();
+      isInitializedRef.current = true;
 
     } catch (error: any) {
       console.error('Failed to create session:', error);
       updateState({ 
         isLoading: false, 
         error: error.message,
-        syncStatus: 'error'
+        syncStatus: 'error',
+        isResuming: false
       });
     }
   }, [updateState, setupRealtimeSync, startTimeTracking]);
 
-  // Load existing session with optimized dependencies
+  // Load existing session with optimized dependencies and retry logic
   const loadSession = useCallback(async (sessionId: string, userId: string) => {
     try {
-      updateState({ isLoading: true, error: null });
+      updateState({ isLoading: true, error: null, isResuming: true });
 
       const response = await supabaseExamService.getSession(sessionId, userId);
       
@@ -301,11 +286,20 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
       // Setup real-time sync for existing session
       await setupRealtimeSync(sessionId, userId);
 
-      // Create answers map from loaded answers
+      // Create answers map from loaded answers with proper parsing
       const answersMap = new Map<number, ParsedUserAnswer>();
       if (response.answers) {
         response.answers.forEach(answer => {
-          answersMap.set(answer.question_id, answer);
+          try {
+            // Ensure user_answer is properly parsed
+            if (typeof answer.user_answer === 'string') {
+              answer.user_answer = JSON.parse(answer.user_answer);
+            }
+            answersMap.set(answer.question_id, answer);
+          } catch (parseError) {
+            console.error('Failed to parse answer:', answer, parseError);
+            // Skip malformed answers
+          }
         });
         console.log('Loaded answers from session state:', Object.fromEntries(
           Array.from(answersMap.entries()).map(([k, v]) => [k, v.user_answer])
@@ -321,7 +315,8 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
         answers: answersMap,
         progress: calculateProgress(response.session, answersMap),
         isLoading: false,
-        syncStatus: 'synced'
+        syncStatus: 'synced',
+        isResuming: false
       } as Partial<OptimizedExamSessionState>);
 
       console.log('State updated after session loading');
@@ -331,78 +326,33 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
         startTimeTracking();
       }
 
+      isInitializedRef.current = true;
+
     } catch (error: any) {
       console.error('Failed to load session:', error);
       updateState({ 
         isLoading: false, 
         error: error.message,
-        syncStatus: 'error'
+        syncStatus: 'error',
+        isResuming: false
       });
+      
+      // Increment retry count for retry logic
+      updateState(prev => ({ retryCount: prev.retryCount + 1 }));
     }
   }, [updateState, setupRealtimeSync, startTimeTracking, calculateProgress]);
 
-  // Debounced submit answer to prevent rapid fire submissions
-  const submitAnswerDebounced = useCallback(async () => {
-    if (!state.session || pendingAnswersRef.current.size === 0) return;
-
-    const answersToSubmit = Array.from(pendingAnswersRef.current.entries());
-    pendingAnswersRef.current.clear();
-
-    try {
-      updateState({ syncStatus: 'syncing' });
-
-      // Submit all pending answers sequentially to avoid conflicts
-      for (const [questionId, { userAnswer, timeSpent }] of answersToSubmit) {
-        const answerData: SubmitAnswerRequest = {
-          question_id: questionId,
-          user_answer: userAnswer,
-          time_spent_seconds: timeSpent
-        };
-
-        try {
-          const submittedAnswer = await supabaseExamService.submitAnswer(state.session.id, answerData);
-          console.log('Answer saved to database:', userAnswer);
-
-          // Update local state after successful submission
-          updateState(prev => {
-            const newAnswers = new Map(prev.answers);
-            newAnswers.set(questionId, submittedAnswer);
-            return {
-              ...prev,
-              answers: newAnswers,
-              progress: calculateProgress(prev.session!, newAnswers)
-            };
-          });
-        } catch (error: any) {
-          console.error(`Failed to submit answer for question ${questionId}:`, error);
-          // Don't break the loop, continue with other answers
-          // Keep the answer in pending state for retry
-          pendingAnswersRef.current.set(questionId, { userAnswer, timeSpent });
-        }
-      }
-
-      updateState({ syncStatus: 'synced', lastSyncTime: new Date() });
-
-    } catch (error: any) {
-      console.error('Failed to submit answers:', error);
-      updateState({
-        error: error.message,
-        syncStatus: 'error'
-      });
-    }
-  }, [state.session, updateState, calculateProgress]);
-
-  const submitAnswer = useCallback(async (questionId: number, userAnswer: number[], timeSpent = 0) => {
+  // Optimistic answer submission with proper error handling
+  const submitAnswerOptimistic = useCallback(async (questionId: number, userAnswer: number[], timeSpent = 0) => {
     if (!state.session) return;
 
-    // Store the answer for debounced submission
-    pendingAnswersRef.current.set(questionId, { userAnswer, timeSpent });
-
-    // Update local state immediately for UI responsiveness
+    const tempId = `temp_${Date.now()}`;
+    
+    // 1. Optimistic update
     updateState(prev => {
       const newAnswers = new Map(prev.answers);
       const optimisticAnswer: ParsedUserAnswer = {
-        id: `temp_${questionId}`,
+        id: tempId,
         session_id: state.session!.id,
         question_id: questionId,
         user_answer: userAnswer,
@@ -420,13 +370,143 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
       };
     });
 
+    try {
+      // 2. Server update using new API endpoint
+      const response = await fetch(`/api/sessions/${state.session.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'submit_answer',
+          data: { questionId, userAnswer, timeSpent },
+          userId: state.session.user_id
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      const submittedAnswer = await response.json();
+
+      // 3. Replace optimistic data with real data
+      updateState(prev => {
+        const newAnswers = new Map(prev.answers);
+        newAnswers.set(questionId, submittedAnswer);
+        return {
+          ...prev,
+          answers: newAnswers,
+          progress: calculateProgress(prev.session!, newAnswers),
+          syncStatus: 'synced',
+          lastSyncTime: new Date()
+        };
+      });
+
+      // Remove from pending/failed if it was there
+      pendingAnswersRef.current.delete(questionId);
+      failedAnswersRef.current.delete(questionId);
+
+    } catch (error: any) {
+      console.error(`Failed to submit answer for question ${questionId}:`, error);
+      
+      // 4. Rollback on error
+      updateState(prev => {
+        const newAnswers = new Map(prev.answers);
+        newAnswers.delete(questionId);
+        return { 
+          ...prev, 
+          answers: newAnswers,
+          progress: calculateProgress(prev.session!, newAnswers),
+          syncStatus: 'error',
+          error: `Failed to save answer: ${error.message}`
+        };
+      });
+      
+      // Queue for retry
+      failedAnswersRef.current.set(questionId, { 
+        userAnswer, 
+        timeSpent, 
+        error: error.message, 
+        retryCount: 0 
+      });
+    }
+  }, [state.session, updateState, calculateProgress]);
+
+  // Retry failed answers
+  const retryFailedAnswers = useCallback(async () => {
+    if (failedAnswersRef.current.size === 0) return;
+
+    const failedAnswers = Array.from(failedAnswersRef.current.entries());
+    
+    for (const [questionId, { userAnswer, timeSpent, retryCount }] of failedAnswers) {
+      if (retryCount >= 3) {
+        console.error(`Max retries reached for question ${questionId}`);
+        continue;
+      }
+
+      try {
+        await submitAnswerOptimistic(questionId, userAnswer, timeSpent);
+      } catch (error) {
+        // Increment retry count
+        failedAnswersRef.current.set(questionId, {
+          userAnswer,
+          timeSpent,
+          error: error.message,
+          retryCount: retryCount + 1
+        });
+      }
+    }
+  }, [submitAnswerOptimistic]);
+
+  // Debounced submit answer to prevent rapid fire submissions
+  const submitAnswerDebounced = useCallback(async () => {
+    if (!state.session || pendingAnswersRef.current.size === 0) return;
+
+    const answersToSubmit = Array.from(pendingAnswersRef.current.entries());
+    pendingAnswersRef.current.clear();
+
+    try {
+      updateState({ syncStatus: 'syncing' });
+
+      // Submit all pending answers using new API endpoint
+      for (const [questionId, { userAnswer, timeSpent }] of answersToSubmit) {
+        try {
+          await submitAnswerOptimistic(questionId, userAnswer, timeSpent);
+        } catch (error: any) {
+          console.error(`Failed to submit answer for question ${questionId}:`, error);
+          // Keep the answer in failed state for retry
+          failedAnswersRef.current.set(questionId, { 
+            userAnswer, 
+            timeSpent, 
+            error: error.message, 
+            retryCount: 0 
+          });
+        }
+      }
+
+      updateState({ syncStatus: 'synced', lastSyncTime: new Date() });
+
+    } catch (error: any) {
+      console.error('Failed to submit answers:', error);
+      updateState({
+        error: error.message,
+        syncStatus: 'error'
+      });
+    }
+  }, [state.session, updateState, submitAnswerOptimistic]);
+
+  const submitAnswer = useCallback(async (questionId: number, userAnswer: number[], timeSpent = 0) => {
+    if (!state.session) return;
+
+    // Store the answer for debounced submission
+    pendingAnswersRef.current.set(questionId, { userAnswer, timeSpent, retryCount: 0 });
+
     // Clear existing timeout and set new one
     if (submitAnswerTimeoutRef.current) {
       clearTimeout(submitAnswerTimeoutRef.current);
     }
 
-    submitAnswerTimeoutRef.current = setTimeout(submitAnswerDebounced, 500); // 500ms debounce
-  }, [state.session, updateState, calculateProgress, submitAnswerDebounced]);
+    submitAnswerTimeoutRef.current = setTimeout(submitAnswerDebounced, 1000); // Increased to 1 second
+  }, [state.session, submitAnswerDebounced]);
 
   const flagQuestion = useCallback(async (questionId: number, flagged: boolean) => {
     if (!state.session) return;
@@ -604,6 +684,7 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
     
     // Clear pending answers
     pendingAnswersRef.current.clear();
+    failedAnswersRef.current.clear(); // Clear failed answers on reset
     
     await cleanupRealtimeSync();
 
@@ -620,7 +701,9 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
       progress: 0,
       presences: [],
       lastSyncTime: null,
-      totalQuestions: 0
+      totalQuestions: 0,
+      isResuming: false,
+      retryCount: 0
     });
   }, [cleanupRealtimeSync]);
 
@@ -648,6 +731,11 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
     }
   }, [state.session, setupRealtimeSync, updateState]);
 
+  // Retry failed answers on mount if there are any
+  useEffect(() => {
+    retryFailedAnswers();
+  }, [retryFailedAnswers]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -671,7 +759,8 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
     completeSession,
     resetSession,
     forceSync,
-    retryConnection
+    retryConnection,
+    retryFailedAnswers
   };
 
   return [state, actions];

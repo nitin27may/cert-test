@@ -84,14 +84,27 @@ export default function ExamSetupPage() {
     setIsStarting(true);
 
     try {
-      // Create a new session in the database
-      const sessionResponse = await supabaseExamService.createSession(user.id, {
-        exam_id: examId,
-        selected_topics: selectedTopics,
-        question_limit: questionCount,
-        session_name: `Practice Session - ${new Date().toLocaleDateString()}`
+      // Use the new API route instead of direct Supabase call
+      const response = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          examId: examId,
+          selectedTopics: selectedTopics,
+          questionLimit: questionCount,
+          sessionName: `Practice Session - ${new Date().toLocaleDateString()}`
+        })
       });
 
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const sessionResponse = await response.json();
       console.log('Session created successfully:', sessionResponse.session.id);
       
       // Navigate to practice page with session ID to avoid race condition
@@ -99,7 +112,8 @@ export default function ExamSetupPage() {
       
     } catch (error) {
       console.error('Failed to create session:', error);
-      alert('Failed to start exam. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to start exam: ${errorMessage}`);
       setIsStarting(false);
     }
   };
@@ -279,14 +293,21 @@ export default function ExamSetupPage() {
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-2">
                         <div className="font-medium text-gray-900 dark:text-white">{topic.name}</div>
-                        {topic.weightage && (
+                        {((topic.weightage || (topic.weight ? parseFloat(topic.weight) : 0)) > 0) && (
                           <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full text-xs font-medium">
-                            {topic.weightage}%
+                            {(topic.weightage || (topic.weight ? parseFloat(topic.weight) : 0))}%
                           </span>
                         )}
                       </div>
                       <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {topic.modules.join(', ')}
+                        {Array.isArray(topic.modules) 
+                          ? topic.modules.map(module => 
+                              typeof module === 'string' 
+                                ? module 
+                                : module.module_name || 'Unknown Module'
+                            ).join(', ')
+                          : 'No modules available'
+                        }
                       </div>
                     </div>
                   </label>
@@ -306,7 +327,9 @@ export default function ExamSetupPage() {
                     <span className="font-medium text-gray-900 dark:text-white">
                       {selectedTopics.reduce((total, topicId) => {
                         const topic = exam.topics.find(t => t.id === topicId);
-                        return total + (topic?.weightage || 0);
+                        // Handle both weight (string) and weightage (number) properties
+                        const topicWeightage = topic?.weightage || (topic?.weight ? parseFloat(topic.weight) : 0);
+                        return total + (topicWeightage || 0);
                       }, 0)}%
                     </span>
                   </div>
@@ -316,7 +339,9 @@ export default function ExamSetupPage() {
                       style={{ 
                         width: `${(selectedTopics.reduce((total, topicId) => {
                           const topic = exam.topics.find(t => t.id === topicId);
-                          return total + (topic?.weightage || 0);
+                          // Handle both weight (string) and weightage (number) properties
+                          const topicWeightage = topic?.weightage || (topic?.weight ? parseFloat(topic.weight) : 0);
+                          return total + (topicWeightage || 0);
                         }, 0) / 100) * 100}%` 
                       }}
                     ></div>

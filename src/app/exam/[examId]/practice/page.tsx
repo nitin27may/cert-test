@@ -134,21 +134,99 @@ export default function ExamPracticePage() {
       return;
     }
 
+    console.log('Attempting to load answers from session state. Answers size:', sessionState.answers?.size || 0);
+
     // If we have answers in the session state, load them
     if (sessionState.answers && sessionState.answers.size > 0) {
       const answersFromDb: Record<number, number | number[]> = {};
+      
       sessionState.answers.forEach((answer, questionId) => {
         // Find the question index by question ID
         const questionIndex = questions.findIndex(q => q.id === questionId);
         if (questionIndex !== -1) {
           answersFromDb[questionIndex] = answer.user_answer;
+          console.log(`Mapping question ${questionId} (index ${questionIndex}) -> answer:`, answer.user_answer);
+        } else {
+          console.warn(`Question with ID ${questionId} not found in questions array`);
         }
       });
       
+      console.log('Setting user answers from session state:', answersFromDb);
       setUserAnswers(answersFromDb);
-      console.log('Loaded answers from session state:', answersFromDb);
+    } else {
+      console.log('No answers found in session state, checking if we need to clear existing answers');
+      // Only clear if we had answers before but now we don't
+      if (Object.keys(userAnswers).length > 0) {
+        console.log('Clearing user answers as session state has no answers');
+        setUserAnswers({});
+      }
     }
-  }, [sessionState.session?.id, sessionState.isLoading, sessionState.currentQuestion, questions.length, isBooting]);
+  }, [sessionState.session?.id, sessionState.answers?.size, sessionState.isLoading, sessionState.currentQuestion, questions.length, isBooting]);
+
+  // Also add a direct effect to watch for answers changes
+  useEffect(() => {
+    if (!sessionState.answers || sessionState.answers.size === 0) return;
+    
+    console.log('Session answers changed, size:', sessionState.answers.size);
+    
+    // Convert Map<number, ParsedUserAnswer> to Record<number, number[]> 
+    const answersFromState: Record<number, number | number[]> = {};
+    
+    sessionState.answers.forEach((answer, questionId) => {
+      const questionIndex = questions.findIndex(q => q.id === questionId);
+      if (questionIndex !== -1) {
+        answersFromState[questionIndex] = answer.user_answer;
+      }
+    });
+    
+    console.log('Updated user answers from session state:', answersFromState);
+    setUserAnswers(prev => {
+      // Only update if there's actually a change to prevent infinite loops
+      const hasChanged = Object.keys(answersFromState).some(key => 
+        JSON.stringify(prev[parseInt(key)]) !== JSON.stringify(answersFromState[parseInt(key)])
+      );
+      
+      if (hasChanged) {
+        console.log('User answers changed, updating state');
+        return answersFromState;
+      }
+      return prev;
+    });
+  }, [sessionState.answers, questions]);
+
+  // Force refresh visual state when component mounts or session resumes
+  useEffect(() => {
+    if (sessionState.answers && sessionState.answers.size > 0 && questions.length > 0 && !sessionState.isLoading) {
+      // Force a re-render to ensure visual state is applied
+      const timer = setTimeout(() => {
+        console.log('Force refreshing visual state for answers');
+        // Trigger a re-render by updating a state variable
+        setUserAnswers(prev => ({ ...prev }));
+        
+        // Also ensure that checked answers show explanations
+        const currentQuestionChecked = checkedAnswers[currentQuestionIndex];
+        if (currentQuestionChecked && !showExplanation) {
+          console.log('Auto-showing explanation for checked question');
+          setShowExplanation(true);
+        }
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [sessionState.answers, questions, sessionState.isLoading, currentQuestionIndex, checkedAnswers, showExplanation]);
+
+  // Additional force refresh when userAnswers change to ensure visual state is applied
+  useEffect(() => {
+    if (Object.keys(userAnswers).length > 0) {
+      console.log('User answers changed, ensuring visual state is applied');
+      // Force a re-render to ensure visual state is applied
+      const timer = setTimeout(() => {
+        setUserAnswers(prev => ({ ...prev }));
+      }, 50);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [userAnswers]);
 
   // Function to load answers directly from database
   const loadAnswersFromDatabase = async (sessionId: string) => {
@@ -219,8 +297,15 @@ export default function ExamPracticePage() {
     try {
       const answerArray = Array.isArray(newAnswer) ? newAnswer : [newAnswer];
       
-      // Submit answer to database via the session hook (hook handles debouncing)
+      // Use the question ID from the current question, not the index
       await sessionActions.submitAnswer(currentQuestion.id, answerArray, 0);
+      
+      console.log('Answer submitted successfully:', {
+        questionIndex: currentQuestionIndex,
+        questionId: currentQuestion.id,
+        userAnswer: newAnswer,
+        answerArray
+      });
     } catch (error) {
       console.error('Failed to save answer to database:', error);
       // Revert local state on error
@@ -231,6 +316,95 @@ export default function ExamPracticePage() {
       });
     }
   }, [showExplanation, currentQuestion, userAnswers, currentQuestionIndex, sessionActions.submitAnswer]);
+
+  // Sync checkedAnswers with session state when answers are loaded
+  useEffect(() => {
+    if (sessionState.answers && sessionState.answers.size > 0 && questions.length > 0) {
+      const newCheckedAnswers: Record<number, boolean> = {};
+      
+      // Mark all answered questions as checked
+      sessionState.answers.forEach((answer, questionId) => {
+        // Find the question index by matching the question ID
+        const questionIndex = questions.findIndex(q => q.id === questionId);
+        if (questionIndex !== -1) {
+          newCheckedAnswers[questionIndex] = true;
+        }
+      });
+      
+      setCheckedAnswers(newCheckedAnswers);
+      console.log('Synced checked answers with session state:', newCheckedAnswers);
+    }
+  }, [sessionState.answers, questions]);
+
+  // Sync userAnswers with session state
+  useEffect(() => {
+    if (sessionState.answers && sessionState.answers.size > 0 && questions.length > 0) {
+      const newUserAnswers: Record<number, number | number[]> = {};
+      
+      sessionState.answers.forEach((answer, questionId) => {
+        // Find the question index by matching the question ID
+        const questionIndex = questions.findIndex(q => q.id === questionId);
+        if (questionIndex !== -1) {
+          try {
+            // Parse the user_answer if it's a string
+            if (typeof answer.user_answer === 'string') {
+              newUserAnswers[questionIndex] = JSON.parse(answer.user_answer);
+            } else {
+              newUserAnswers[questionIndex] = answer.user_answer;
+            }
+          } catch (parseError) {
+            console.error('Failed to parse user answer:', answer, parseError);
+            newUserAnswers[questionIndex] = [];
+          }
+        }
+      });
+      
+      setUserAnswers(newUserAnswers);
+      console.log('Synced user answers with session state:', newUserAnswers);
+    }
+  }, [sessionState.answers, questions]);
+
+  // Additional sync when current question changes to ensure visual state is correct
+  useEffect(() => {
+    if (currentQuestionIndex >= 0 && questions.length > 0) {
+      console.log('Current question changed, checking answer state:', {
+        currentQuestionIndex,
+        userAnswer: userAnswers[currentQuestionIndex],
+        hasAnswer: userAnswers.hasOwnProperty(currentQuestionIndex),
+        totalUserAnswers: Object.keys(userAnswers).length
+      });
+    }
+  }, [currentQuestionIndex, questions, userAnswers]);
+
+  // Helper function to manually verify selection state
+  const verifySelectionState = useCallback((questionIndex: number, optionIndex: number) => {
+    const userAnswer = userAnswers[questionIndex];
+    const question = questions[questionIndex];
+    
+    if (!question || !userAnswers.hasOwnProperty(questionIndex)) {
+      console.log(`Selection verification failed: No question or answer for index ${questionIndex}`);
+      return false;
+    }
+    
+    let isSelected = false;
+    if (question.type === 'multiple') {
+      isSelected = Array.isArray(userAnswer) && userAnswer.includes(optionIndex);
+    } else {
+      // For single selection, check both exact match and array inclusion
+      isSelected = userAnswer === optionIndex || (Array.isArray(userAnswer) && userAnswer.includes(optionIndex));
+    }
+    
+    console.log(`Selection verification for question ${questionIndex}, option ${optionIndex}:`, {
+      userAnswer,
+      userAnswerType: typeof userAnswer,
+      userAnswerIsArray: Array.isArray(userAnswer),
+      questionType: question.type,
+      isSelected,
+      verificationResult: isSelected
+    });
+    
+    return isSelected;
+  }, [userAnswers, questions]);
 
   const handleNext = useCallback(() => {
     sessionActions.nextQuestion();
@@ -312,6 +486,27 @@ export default function ExamPracticePage() {
     
     return isCorrect ? 'correct' : 'incorrect';
   };
+
+  // Helper function to check if user got the current question completely correct
+  const isCurrentQuestionCorrect = useCallback(() => {
+    if (!currentQuestion || !userAnswers.hasOwnProperty(currentQuestionIndex)) return false;
+    
+    const userAnswer = userAnswers[currentQuestionIndex];
+    const correctAnswers = currentQuestion.correct_answers;
+    
+    if (!correctAnswers) return false;
+    
+    if (currentQuestion.type === 'multiple') {
+      const userAnswerArray = Array.isArray(userAnswer) ? userAnswer : [];
+      const correctAnswersArray = Array.isArray(correctAnswers) ? correctAnswers : [correctAnswers];
+      
+      // Check if user selected exactly the correct answers
+      return userAnswerArray.length === correctAnswersArray.length &&
+             userAnswerArray.every(ans => correctAnswersArray.includes(ans));
+    } else {
+      return userAnswer === correctAnswers;
+    }
+  }, [currentQuestion, currentQuestionIndex, userAnswers]);
 
   const handleFinishExam = async () => {
     if (!sessionState.session) return;
@@ -510,7 +705,21 @@ export default function ExamPracticePage() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Question Content */}
           <div className="lg:col-span-3">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6 border border-gray-100 dark:border-gray-700">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-100 dark:border-gray-700">
+              {/* Debug Information */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded text-xs">
+                  <strong>Debug Info:</strong>
+                  <div>Current Question Index: {currentQuestionIndex}</div>
+                  <div>User Answers: {JSON.stringify(userAnswers)}</div>
+                  <div>Session Answers Count: {sessionState.answers?.size || 0}</div>
+                  <div>Show Explanation: {showExplanation ? 'Yes' : 'No'}</div>
+                  <div>Checked Answers: {JSON.stringify(checkedAnswers)}</div>
+                </div>
+              )}
+              
+              {/* Question Header */}
+              
               <div className="mb-4 flex flex-wrap gap-2">
                 <span className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs px-2 py-1 rounded-full">
                   {/* Find topic name from topic ID */}
@@ -537,36 +746,93 @@ export default function ExamPracticePage() {
                 </p>
               </div>
 
+              {/* Answer Options */}
               <div className="space-y-3">
+                {/* Debug: Show current answer state */}
+                {process.env.NODE_ENV === 'development' && (
+                  <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded text-xs">
+                    <strong>Answer State Debug:</strong>
+                    <div>Current Question Index: {currentQuestionIndex}</div>
+                    <div>User Answer for this question: {JSON.stringify(userAnswers[currentQuestionIndex])}</div>
+                    <div>User Answer Type: {typeof userAnswers[currentQuestionIndex]}</div>
+                    <div>User Answer Is Array: {Array.isArray(userAnswers[currentQuestionIndex]) ? 'Yes' : 'No'}</div>
+                    <div>Question Type: {currentQuestion.type}</div>
+                    <div>Correct Answers: {JSON.stringify(currentQuestion.correct_answers)}</div>
+                    <div>Show Result: {showExplanation ? 'Yes' : 'No'}</div>
+                    <div>All User Answers: {JSON.stringify(userAnswers)}</div>
+                    <div>Verification - Option A (0): {verifySelectionState(currentQuestionIndex, 0) ? 'Selected' : 'Not Selected'}</div>
+                    <div>Verification - Option B (1): {verifySelectionState(currentQuestionIndex, 1) ? 'Selected' : 'Not Selected'}</div>
+                    <button 
+                      onClick={() => {
+                        console.log('Manual refresh triggered');
+                        setUserAnswers(prev => ({ ...prev }));
+                      }}
+                      className="mt-2 px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600"
+                    >
+                      Force Refresh Visual State
+                    </button>
+                  </div>
+                )}
+                
                 {currentQuestion.options.map((option, index) => {
                   const userAnswer = userAnswers[currentQuestionIndex];
                   const correctAnswers = currentQuestion.correct_answers;
                   
-                  let isSelected = false;
-                  if (currentQuestion.type === 'multiple') {
-                    isSelected = Array.isArray(userAnswer) && userAnswer.includes(index);
-                  } else {
-                    isSelected = userAnswer === index;
-                  }
+                  // Use the verification function for more robust selection detection
+                  let isSelected = verifySelectionState(currentQuestionIndex, index);
                   
                   const isCorrect = correctAnswers.includes(index);
                   const showResult = showExplanation;
                   
+                  // Enhanced debug logging for each option
+                  if (process.env.NODE_ENV === 'development') {
+                    console.log(`Option ${index} (${String.fromCharCode(65 + index)}):`, {
+                      option: option.substring(0, 30) + '...',
+                      userAnswer,
+                      userAnswerType: typeof userAnswer,
+                      userAnswerIsArray: Array.isArray(userAnswer),
+                      currentQuestionIndex,
+                      isSelected,
+                      isCorrect,
+                      showResult,
+                      correctAnswers,
+                      correctAnswersType: typeof correctAnswers
+                    });
+                  }
+                  
+                  // Determine the visual state based on best practices
                   let buttonClass = "w-full text-left p-4 border rounded-lg transition-colors ";
+                  let checkboxClass = "";
+                  let showCheckmark = false;
                   
                   if (showResult) {
+                    // After checking answer - show correct/incorrect status
                     if (isCorrect) {
+                      // Correct answers are always green
                       buttonClass += "bg-green-100 dark:bg-green-900/30 border-green-500 dark:border-green-600 text-green-800 dark:text-green-300";
-                    } else if (isSelected && !isCorrect) {
+                      checkboxClass = "bg-green-500 border-green-500";
+                      showCheckmark = true;
+                    } else if (isSelected) {
+                      // Only highlight user's incorrect selections in red
                       buttonClass += "bg-red-100 dark:bg-red-900/30 border-red-500 dark:border-red-600 text-red-800 dark:text-red-300";
+                      checkboxClass = "bg-red-500 border-red-500";
+                      showCheckmark = false;
                     } else {
-                      buttonClass += "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400";
+                      // Unselected incorrect answers show default styling (not highlighted)
+                      buttonClass += "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white";
+                      checkboxClass = "border-gray-300 dark:border-gray-600";
+                      showCheckmark = false;
                     }
                   } else {
+                    // Before checking answer - show selection state
                     if (isSelected) {
                       buttonClass += "bg-blue-100 dark:bg-blue-900/30 border-blue-500 dark:border-blue-600 text-blue-800 dark:text-blue-300";
+                      checkboxClass = "bg-blue-500 border-blue-500";
+                      showCheckmark = true;
                     } else {
                       buttonClass += "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700";
+                      checkboxClass = "border-gray-300 dark:border-gray-600";
+                      showCheckmark = false;
                     }
                   }
 
@@ -575,25 +841,47 @@ export default function ExamPracticePage() {
                       key={index}
                       onClick={() => handleAnswerSelect(index)}
                       className={buttonClass}
+                      disabled={showResult} // Disable selection after checking answer
                     >
                       <div className="flex items-center">
                         {currentQuestion.type === 'multiple' ? (
-                          <div className={`w-4 h-4 mr-3 border-2 rounded ${isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300 dark:border-gray-600'} flex items-center justify-center`}>
-                            {isSelected && (
+                          <div className={`w-4 h-4 mr-3 border-2 rounded ${checkboxClass} flex items-center justify-center`}>
+                            {showCheckmark && (
                               <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                               </svg>
                             )}
                           </div>
                         ) : (
-                          <div className={`w-4 h-4 mr-3 border-2 rounded-full ${isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300 dark:border-gray-600'} flex items-center justify-center`}>
-                            {isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                          <div className={`w-4 h-4 mr-3 border-2 rounded-full ${checkboxClass} flex items-center justify-center`}>
+                            {showCheckmark && <div className="w-2 h-2 bg-white rounded-full"></div>}
                           </div>
                         )}
                         <span className="font-medium mr-3 min-w-[24px]">
                           {String.fromCharCode(65 + index)}.
                         </span>
                         <span className="flex-1">{option}</span>
+                        
+                        {/* Status indicator when showing results */}
+                        {showResult && (
+                          <div className="ml-2 flex items-center space-x-2">
+                            {isSelected && (
+                              <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                                isCorrect 
+                                  ? 'bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200'
+                                  : 'bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200'
+                              }`}>
+                                {isCorrect ? '✓ Correct' : '✗ Wrong'}
+                              </span>
+                            )}
+                            {!isSelected && isCorrect && (
+                              <span className="px-2 py-1 bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 text-xs rounded-full font-medium">
+                                ✓ Correct Answer
+                              </span>
+                            )}
+                            {/* Remove the badge for unselected incorrect answers - they should not be highlighted */}
+                          </div>
+                        )}
                       </div>
                     </button>
                   );
@@ -603,6 +891,22 @@ export default function ExamPracticePage() {
               {/* Explanation */}
               {showExplanation && (
                 <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                  {/* Score Indicator */}
+                  <div className="mb-4 p-3 bg-white dark:bg-gray-800 rounded border">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Question Result:
+                      </span>
+                      <span className={`text-sm font-bold ${
+                        isCurrentQuestionCorrect() 
+                          ? 'text-green-600 dark:text-green-400' 
+                          : 'text-red-600 dark:text-red-400'
+                      }`}>
+                        {isCurrentQuestionCorrect() ? '✓ Correct' : '✗ Incorrect'}
+                      </span>
+                    </div>
+                  </div>
+                  
                   <h3 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">Explanation:</h3>
                   <p className="text-blue-800 dark:text-blue-300 mb-4">{currentQuestion.explanation}</p>
                   

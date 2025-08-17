@@ -450,12 +450,18 @@ export interface ExamResultResponse {
 export interface ExamResultsResponse {
   results: Array<{
     id: string;
+    session_id: string;
     exam_id: string;
     exam_title: string;
+    total_questions: number;
+    correct_answers: number;
+    incorrect_answers: number;
+    unanswered_questions: number;
     score_percentage: number;
     pass_status: boolean | null;
     completed_at: string;
     time_spent_seconds: number;
+    average_time_per_question: number;
   }>;
 }
 
