@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useExamData } from '@/hooks/useExamData';
+import { useExamState } from '@/hooks/useExamState';
 import { Question } from '@/lib/types';
 import Header from '@/components/Header';
+import ConfirmationModal from '@/components/ConfirmationModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthService } from '@/lib/auth/authService';
 
@@ -63,22 +65,48 @@ export default function ExamPracticePage() {
   const [questionCount, setQuestionCount] = useState<number>(20);
   
   useEffect(() => {
+    console.log('Practice page loading for exam:', examId);
     const configStr = sessionStorage.getItem(`exam-config-${examId}`);
+    console.log('Config from sessionStorage:', configStr);
+    
     if (!configStr) {
+      console.log('No config found, redirecting to setup');
       router.push(`/exam/${examId}/setup`);
       return;
     }
-    const examConfig: ExamConfig = JSON.parse(configStr);
-    setConfig(examConfig);
-    setQuestionCount(examConfig.questionCount);
+    
+    try {
+      const examConfig: ExamConfig = JSON.parse(configStr);
+      console.log('Parsed exam config:', examConfig);
+      setConfig(examConfig);
+      setQuestionCount(examConfig.questionCount);
+    } catch (error) {
+      console.error('Error parsing exam config:', error);
+      console.log('Redirecting to setup due to config parsing error');
+      router.push(`/exam/${examId}/setup`);
+    }
   }, [examId, router]);
 
-  const { exam, questions, loading: isLoading, error } = useExamData(examId, questionCount, config?.selectedTopics, config?.difficulty);
+  const { exam, questions, loading: isLoading, error } = useExamData(examId, questionCount, config?.selectedTopics);
+  
+  // Debug logging for questions
+  useEffect(() => {
+    console.log('Practice page - Exam data loaded:', { exam, questions, loading: isLoading, error });
+    console.log('Practice page - Config:', config);
+    console.log('Practice page - Question count:', questionCount);
+    console.log('Practice page - Selected topics:', config?.selectedTopics);
+    console.log('Practice page - Questions array length:', questions?.length || 0);
+    if (questions && questions.length > 0) {
+      console.log('Practice page - First few questions:', questions.slice(0, 3).map(q => ({ id: q.id, topic: q.topic, question: q.question.substring(0, 100) + '...' })));
+    }
+  }, [exam, questions, isLoading, error, config, questionCount]);
+
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<Record<number, number | number[]>>({});
   const [showExplanation, setShowExplanation] = useState(false);
   const [checkedAnswers, setCheckedAnswers] = useState<Record<number, boolean>>({});
   const [timeRemaining, setTimeRemaining] = useState(0);
+  const [showPauseModal, setShowPauseModal] = useState(false);
 
   // Initialize timer when config is loaded
   useEffect(() => {
@@ -177,32 +205,22 @@ export default function ExamPracticePage() {
   };
 
   const handlePauseTest = () => {
-    if (confirm('Are you sure you want to pause this test? Your progress will be saved.')) {
-      // Calculate progress percentage
-      const progressPercentage = Math.round((currentQuestionIndex / questions.length) * 100);
-      
-      // Save current progress
-      const progress = {
-        currentQuestionIndex,
-        userAnswers,
-        checkedAnswers,
-        timeRemaining,
-        pausedAt: Date.now(),
-        status: 'in-progress',
-        progress: progressPercentage > 0 ? progressPercentage : 1, // Minimum 1% to show as in-progress
-        examId: examId,
-        examTitle: exam?.title || '',
-        questions: questions.map(q => q.id) // Store question IDs for resuming
-      };
-      
-      // Save to sessionStorage for immediate restoration
-      sessionStorage.setItem(`exam-progress-${examId}`, JSON.stringify(progress));
-      
-      // Save to user data for dashboard tracking
-      updateExamProgress(examId, progress);
-      
-      router.push('/dashboard');
-    }
+    setShowPauseModal(true);
+  };
+
+  const handleConfirmPause = () => {
+    // Save current progress
+    const currentProgress = {
+      currentQuestionIndex,
+      userAnswers,
+      checkedAnswers,
+      timeRemaining
+    };
+    
+    sessionStorage.setItem(`exam-progress-${examId}`, JSON.stringify(currentProgress));
+    
+    // Navigate back to dashboard
+    router.push('/dashboard');
   };
 
   const getQuestionStatus = (questionIndex: number) => {
@@ -304,8 +322,76 @@ export default function ExamPracticePage() {
 
   if (!exam || questions.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-lg text-gray-900 dark:text-white">No questions available</div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <Header />
+        <div className="max-w-4xl mx-auto p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-100 dark:border-gray-700">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                </svg>
+              </div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">No Questions Available</h1>
+              
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4 mb-6 max-w-2xl mx-auto">
+                <h3 className="font-medium text-yellow-800 dark:text-yellow-200 mb-3">Debug Information</h3>
+                <div className="text-sm text-yellow-700 dark:text-yellow-300 text-left space-y-2">
+                  <p><strong>Exam ID:</strong> {examId}</p>
+                  <p><strong>Config Loaded:</strong> {config ? 'Yes' : 'No'}</p>
+                  <p><strong>Selected Topics:</strong> {config?.selectedTopics?.join(', ') || 'None'}</p>
+                  <p><strong>Question Count:</strong> {questionCount}</p>
+                  <p><strong>Exam Data:</strong> {exam ? 'Loaded' : 'Not Loaded'}</p>
+                  <p><strong>Questions Array:</strong> {questions?.length || 0} questions</p>
+                  <p><strong>Error:</strong> {error || 'None'}</p>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <p className="text-gray-600 dark:text-gray-300">
+                  This could be due to:
+                </p>
+                <ul className="text-left text-gray-600 dark:text-gray-300 space-y-2 max-w-md mx-auto">
+                  <li>• No questions match the selected topics</li>
+                  <li>• Topic filtering is too restrictive</li>
+                  <li>• Exam data is not properly loaded</li>
+                  <li>• Questions array is empty</li>
+                </ul>
+              </div>
+              
+              <div className="mt-6 flex space-x-4 justify-center">
+                <button
+                  onClick={() => router.push(`/exam/${examId}/setup`)}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                >
+                  Back to Exam Setup
+                </button>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                >
+                  Reload Page
+                </button>
+                <button
+                  onClick={() => {
+                    console.log('=== DEBUG: Topic Filtering Information ===');
+                    console.log('Exam ID:', examId);
+                    console.log('Config:', config);
+                    console.log('Selected Topics:', config?.selectedTopics);
+                    console.log('Question Count:', questionCount);
+                    console.log('Exam Data:', exam);
+                    console.log('Questions Array:', questions);
+                    console.log('Error:', error);
+                    console.log('==========================================');
+                  }}
+                  className="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                >
+                  Debug Info
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -547,7 +633,7 @@ export default function ExamPracticePage() {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Question Overview</h3>
               
               {/* Question Dots Grid */}
-              <div className="grid grid-cols-5 gap-2 mb-4">
+              <div className="grid grid-cols-5 gap-3 mb-4">
                 {questions.map((_, index) => {
                   const status = getQuestionStatus(index);
                   const isActive = index === currentQuestionIndex;
@@ -630,6 +716,15 @@ export default function ExamPracticePage() {
           </div>
         </div>
       </div>
+      <ConfirmationModal
+        isOpen={showPauseModal}
+        onClose={() => setShowPauseModal(false)}
+        onConfirm={handleConfirmPause}
+        title="Pause Test"
+        message="Are you sure you want to pause this test? Your progress will be saved."
+        confirmText="Pause Test"
+        cancelText="Continue Test"
+      />
     </div>
   );
 }

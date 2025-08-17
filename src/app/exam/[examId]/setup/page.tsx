@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useExamData } from '@/hooks/useExamData';
+import { useEffect, useState } from 'react';
 import Header from '@/components/Header';
+import { useExamData } from '@/hooks/useExamData';
+import { examService } from '@/lib/api/examService';
+import { CertificationInfo } from '@/lib/types';
 
 // Helper function to update exam progress in localStorage
 const updateExamProgress = (examId: string, progressData: any) => {
@@ -34,6 +36,7 @@ export default function ExamSetupPage() {
   const [questionCount, setQuestionCount] = useState(50);
   const [timeLimit, setTimeLimit] = useState(90);
   const [difficulty, setDifficulty] = useState<string>('mix');
+  const [certificationInfo, setCertificationInfo] = useState<CertificationInfo | null>(null);
 
   useEffect(() => {
     if (exam) {
@@ -44,6 +47,61 @@ export default function ExamSetupPage() {
     }
   }, [exam, error, router]);
 
+  useEffect(() => {
+    const loadCertificationInfo = async () => {
+      try {
+        console.log('Loading certification info for exam:', examId);
+        const examData = await examService.getExamById(examId);
+        console.log('Exam data loaded:', examData);
+        console.log('Exam data structure:', JSON.stringify(examData, null, 2));
+        
+        if (examData && examData.certificationInfo) {
+          console.log('Certification info found:', examData.certificationInfo);
+          console.log('Certification info structure:', JSON.stringify(examData.certificationInfo, null, 2));
+          setCertificationInfo(examData.certificationInfo);
+        } else {
+          console.log('No certification info found in exam data');
+          console.log('Exam data structure:', examData);
+          if (examData) {
+            console.log('Available properties:', Object.keys(examData));
+            console.log('certificationInfo property:', examData.certificationInfo);
+            
+            // Check for different possible property names
+            const possibleNames = ['certificationInfo', 'certification_info', 'certification', 'info', 'details'];
+            for (const name of possibleNames) {
+              if (name in examData && (examData as any)[name]) {
+                console.log(`Found property "${name}":`, (examData as any)[name]);
+              }
+            }
+            
+            // Check for nested properties
+            if ((examData as any).exam && (examData as any).exam.certificationInfo) {
+              console.log('Found nested certificationInfo in exam.exam:', (examData as any).exam.certificationInfo);
+            }
+            
+            // Check the first level structure
+            console.log('First level properties:', Object.keys(examData));
+            if ((examData as any).exams) {
+              console.log('Found exams property, checking structure...');
+              const examFromExams = (examData as any).exams[examId];
+              if (examFromExams) {
+                console.log('Exam from exams property:', examFromExams);
+                console.log('Exam properties:', Object.keys(examFromExams));
+                if (examFromExams.certificationInfo) {
+                  console.log('Found certificationInfo in exams[examId]:', examFromExams.certificationInfo);
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error loading certification info:', err);
+      }
+    };
+
+    loadCertificationInfo();
+  }, [examId]);
+
   const handleTopicToggle = (topicId: string) => {
     setSelectedTopics(prev => 
       prev.includes(topicId)
@@ -53,6 +111,12 @@ export default function ExamSetupPage() {
   };
 
   const handleStartExam = () => {
+    console.log('Start exam button clicked');
+    console.log('Selected topics:', selectedTopics);
+    console.log('Question count:', questionCount);
+    console.log('Time limit:', timeLimit);
+    console.log('Difficulty:', difficulty);
+    
     if (selectedTopics.length === 0) {
       alert('Please select at least one topic');
       return;
@@ -65,6 +129,7 @@ export default function ExamSetupPage() {
       timeLimit,
       difficulty
     };
+    console.log('Storing config in sessionStorage:', config);
     sessionStorage.setItem(`exam-config-${examId}`, JSON.stringify(config));
     
     // Initialize exam progress in localStorage
@@ -77,12 +142,14 @@ export default function ExamSetupPage() {
       status: 'in-progress',
       progress: 1, // 1% to show as started
       examId: examId,
-      examTitle: exam?.title || '',
+      examTitle: certificationInfo?.title || exam?.title || '',
       config: config
     };
     
+    console.log('Storing initial progress in localStorage:', initialProgress);
     updateExamProgress(examId, initialProgress);
     
+    console.log('Navigating to practice page...');
     // Navigate to practice page
     router.push(`/exam/${examId}/practice`);
   };
@@ -106,7 +173,7 @@ export default function ExamSetupPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Header />
-      <div className="max-w-4xl mx-auto p-8">
+      <div className="max-w-6xl mx-auto p-8">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 border border-gray-100 dark:border-gray-700">
           {/* Header */}
           <div className="mb-8">
@@ -119,9 +186,88 @@ export default function ExamSetupPage() {
               </svg>
               Back to Exams
             </button>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{exam.title}</h1>
-            <p className="text-gray-600 dark:text-gray-300">{exam.description}</p>
+            <div className="flex items-start justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                  {certificationInfo?.title}
+                </h1>
+                <p className="text-gray-600 dark:text-gray-300">
+                  {certificationInfo?.description || exam.description}
+                </p>
+                {certificationInfo && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 px-3 py-1 rounded-full text-sm font-medium">
+                      {certificationInfo.examCode}
+                    </span>
+                    <span className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 px-3 py-1 rounded-full text-sm font-medium">
+                      {certificationInfo.level}
+                    </span>
+                    <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 px-3 py-1 rounded-full text-sm font-medium">
+                      {certificationInfo.validity}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => router.push(`/exam/${examId}/certification-info`)}
+                className="bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 p-3 rounded-full transition-colors group"
+                title="View Certification Information & Exam Structure"
+              >
+                <svg className="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+              </button>
+            </div>
           </div>
+
+          {/* Temporary Debug Info */}
+          <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+            <h4 className="font-medium text-yellow-800 dark:text-yellow-200 mb-2">Debug Info (Temporary)</h4>
+            <div className="text-sm text-yellow-700 dark:text-yellow-300">
+              <p>Certification Info Status: {certificationInfo ? 'Loaded' : 'Not Loaded'}</p>
+              <p>Exam ID: {examId}</p>
+              <p>Title Source: {certificationInfo ? certificationInfo.title : 'exam.title'}</p>
+              <p>Description Source: {certificationInfo ? certificationInfo.description : 'exam.description'}</p>
+              {certificationInfo && (
+                <>
+                  <p>Certification Title: {certificationInfo.title}</p>
+                  <p>Exam Code: {certificationInfo.examCode}</p>
+                  <p>Level: {certificationInfo.level}</p>
+            
+                </>
+              )}
+  
+            </div>
+          </div>
+
+          {/* Info Button Explanation */}
+          <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+            <div className="flex items-start space-x-3">
+              <div className="bg-blue-100 dark:bg-blue-800 p-2 rounded-full">
+                <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-1">Certification Information</h4>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Click the info button (ℹ️) in the top right to view detailed certification information, exam structure, weightage, study resources, and career paths.
+                  {certificationInfo ? (
+                    <span className="block mt-1 text-green-600 dark:text-green-400">
+                      <strong>✓</strong> Using certification info for title, description, and exam details.
+                    </span>
+                  ) : (
+                    <span className="block mt-1 text-yellow-600 dark:text-yellow-400">
+                      <strong>Note:</strong> Certification details will be displayed once you add the certificationInfo object to your exams.json file. This will also improve the exam title and description display.
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Exam Structure & Weightage */}
+          {/* Removed from default view - now only shown in dedicated page */}
 
           {/* Configuration */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -130,21 +276,74 @@ export default function ExamSetupPage() {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Select Topics</h3>
               <div className="space-y-3">
                 {exam.topics.map((topic) => (
-                  <label key={topic.id} className="flex items-start p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors">
+                  <label key={topic.id} className="flex items-start p-4 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors">
                     <input
                       type="checkbox"
                       checked={selectedTopics.includes(topic.id)}
                       onChange={() => handleTopicToggle(topic.id)}
                       className="mt-1 mr-3 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                     />
-                    <div>
-                      <div className="font-medium text-gray-900 dark:text-white">{topic.name}</div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="font-medium text-gray-900 dark:text-white">{topic.name}</div>
+                        {topic.weightage && (
+                          <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full text-xs font-medium">
+                            {topic.weightage}%
+                          </span>
+                        )}
+                      </div>
                       <div className="text-sm text-gray-500 dark:text-gray-400">
                         {topic.modules.join(', ')}
                       </div>
                     </div>
                   </label>
                 ))}
+              </div>
+              
+              {/* Topics Summary */}
+              <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Topics Coverage</h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Selected Topics:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{selectedTopics.length} of {exam.topics.length}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Total Weightage:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {selectedTopics.reduce((total, topicId) => {
+                        const topic = exam.topics.find(t => t.id === topicId);
+                        return total + (topic?.weightage || 0);
+                      }, 0)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                    <div 
+                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                      style={{ 
+                        width: `${(selectedTopics.reduce((total, topicId) => {
+                          const topic = exam.topics.find(t => t.id === topicId);
+                          return total + (topic?.weightage || 0);
+                        }, 0) / 100) * 100}%` 
+                      }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {selectedTopics.length === 0 
+                      ? 'Select topics to see coverage percentage'
+                      : selectedTopics.length === exam.topics.length 
+                        ? 'Full exam coverage selected'
+                        : 'Partial exam coverage selected'
+                    }
+                  </p>
+                  {!certificationInfo && (
+                    <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+                      <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                        <strong>Note:</strong> Weightage percentages will be more accurate once you add certificationInfo to your exams.json file.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -231,7 +430,7 @@ export default function ExamSetupPage() {
               disabled={selectedTopics.length === 0}
               className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-8 py-3 rounded-lg text-lg font-medium transition-colors"
             >
-              Start Practice Exam
+              Start {certificationInfo?.examCode || 'Practice'} Exam
             </button>
           </div>
         </div>

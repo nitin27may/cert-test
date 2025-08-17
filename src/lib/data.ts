@@ -1,22 +1,34 @@
 import { Exam, Question } from './types';
-import { sampleExams } from './sampleData';
+import { examService } from './api/examService';
 
-// Mock data for now - replace with actual data loading logic
+// Use exam service to load data from exam.json
 export async function getAvailableExams(): Promise<Exam[]> {
-  // Simulate API call
-  await new Promise(resolve => setTimeout(resolve, 100));
-  return sampleExams;
+  try {
+    const examResponse = await examService.getAllExams();
+    return Object.values(examResponse.exams);
+  } catch (error) {
+    console.error('Failed to load exams:', error);
+    return [];
+  }
 }
 
 export async function getExamById(examId: string): Promise<Exam | null> {
-  // Simulate API call
-  await new Promise(resolve => setTimeout(resolve, 100));
-  return sampleExams.find(exam => exam.id === examId) || null;
+  try {
+    return await examService.getExamById(examId);
+  } catch (error) {
+    console.error(`Failed to load exam ${examId}:`, error);
+    return null;
+  }
 }
 
 export async function getExamQuestions(examId: string): Promise<Question[]> {
-  const exam = await getExamById(examId);
-  return exam?.questions || [];
+  try {
+    const exam = await examService.getExamById(examId);
+    return exam?.questions || [];
+  } catch (error) {
+    console.error(`Failed to load questions for exam ${examId}:`, error);
+    return [];
+  }
 }
 
 export function validateExamData(exam: any): exam is Exam {

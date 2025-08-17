@@ -1,10 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { useExamState } from '@/hooks/useExamState';
+import Header from '@/components/Header';
+import ConfirmationModal from '@/components/ConfirmationModal';
 import Link from 'next/link';
-import Header from '../../components/Header';
 import { AuthGuard } from '../../components/AuthGuard';
-import { useAuth } from '../../contexts/AuthContext';
 import { useAvailableExams } from '../../hooks/useExamData';
 import { AuthService } from '../../lib/auth/authService';
 
@@ -27,14 +30,31 @@ interface ExamStats {
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [activeExams, setActiveExams] = useState<Record<string, ActiveExam>>({});
+  const [activeExams, setActiveExams] = useState<Array<{ 
+    examId: string; 
+    title: string; 
+    progress: number; 
+    lastActive: Date;
+    questionsAnswered: number;
+    totalQuestions: number;
+  }>>([]);
   const [examStats, setExamStats] = useState<ExamStats>({
     totalExams: 0,
     completedExams: 0,
     inProgressExams: 0,
     averageScore: 0,
   });
-  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [recentActivity, setRecentActivity] = useState<Array<{ 
+    id: string; 
+    title: string; 
+    action: string; 
+    timestamp: Date;
+    type?: string;
+    progress?: number;
+    date?: Date;
+  }>>([]);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [examToReset, setExamToReset] = useState<string | null>(null);
   const { exams, loading: isLoading, error } = useAvailableExams();
   const [supabaseUser, setSupabaseUser] = useState<any>(null);
 
@@ -72,10 +92,30 @@ export default function Dashboard() {
     const userData = getStoredUserData();
     
     if (userData) {
-      setActiveExams(userData.examProgress || {});
+      // Ensure examProgress is always an array
+      const examProgress = userData.examProgress;
+      let activeExamsArray = [];
+      
+      if (Array.isArray(examProgress)) {
+        activeExamsArray = examProgress;
+      } else if (examProgress && typeof examProgress === 'object') {
+        // Convert object to array if needed
+        activeExamsArray = Object.values(examProgress).map((exam: any) => ({
+          examId: exam.examId || 'unknown',
+          title: exam.examTitle || exam.title || 'Untitled Exam',
+          progress: exam.progress || 0,
+          lastActive: exam.lastUpdated || exam.startedAt || new Date(),
+          questionsAnswered: exam.questionsAnswered || 0,
+          totalQuestions: exam.totalQuestions || 0
+        }));
+      }
+      
+      setActiveExams(activeExamsArray);
       
       // Calculate stats from user data
-      const progressValues = Object.values(userData.examProgress || {});
+      const progressValues = Array.isArray(examProgress) ? examProgress : 
+                           (examProgress && typeof examProgress === 'object') ? Object.values(examProgress) : [];
+      
       const completedCount = progressValues.filter((exam: any) => exam.progress === 100).length;
       const inProgressCount = progressValues.filter((exam: any) => exam.progress > 0 && exam.progress < 100).length;
       
@@ -111,7 +151,16 @@ export default function Dashboard() {
 
       const allActivities = [...inProgressActivities, ...completedActivities]
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 5);
+        .slice(0, 5)
+        .map(activity => ({
+          id: activity.examId || `activity-${Date.now()}`,
+          title: activity.title || 'Untitled Activity',
+          action: activity.type === 'completed' ? 'Completed' : 
+                  activity.type === 'in-progress' ? `${activity.progress || 0}% progress` : 'Activity',
+          timestamp: activity.date ? new Date(activity.date) : new Date(),
+          type: activity.type || 'unknown',
+          progress: activity.progress || 0
+        }));
 
       setRecentActivity(allActivities);
     }
@@ -122,24 +171,60 @@ export default function Dashboard() {
   };
 
   const resetExam = (examId: string) => {
-    if (confirm('Are you sure you want to reset this exam? All progress will be lost.')) {
-      // Update localStorage for exam progress
-      try {
-        const userId = supabaseUser?.id || user?.id || 'anonymous';
-        const stored = localStorage.getItem(`userData_${userId}`);
-        const userData = stored ? JSON.parse(stored) : { examProgress: {}, examHistory: [] };
-        
-        const updatedProgress = { ...userData.examProgress };
-        delete updatedProgress[examId];
-        
-        const updatedUserData = { ...userData, examProgress: updatedProgress };
-        localStorage.setItem(`userData_${userId}`, JSON.stringify(updatedUserData));
-        
-        setActiveExams(updatedProgress);
-      } catch (error) {
-        console.error('Error resetting exam progress:', error);
+    setExamToReset(examId);
+    setShowResetModal(true);
+  };
+
+  const handleConfirmReset = () => {
+    if (!examToReset) return;
+    
+    console.log('Resetting exam:', examToReset);
+    console.log('Current activeExams state:', activeExams);
+    
+    // Clear all exam-related data for this exam
+    const examProgressKey = `examProgress_${examToReset}`;
+    const userDataKey = `userData_${examToReset}`;
+    const examConfigKey = `exam-config-${examToReset}`;
+    const examProgressSessionKey = `exam-progress-${examToReset}`;
+    
+    // Clear localStorage
+    localStorage.removeItem(examProgressKey);
+    localStorage.removeItem(userDataKey);
+    
+    // Clear sessionStorage
+    sessionStorage.removeItem(examConfigKey);
+    sessionStorage.removeItem(examProgressSessionKey);
+    
+    // Update local state
+    setActiveExams(prev => {
+      console.log('Updating activeExams, prev value:', prev);
+      if (!Array.isArray(prev)) {
+        console.warn('activeExams is not an array, initializing as empty array');
+        return [];
       }
+      const filtered = prev.filter(exam => exam.examId !== examToReset);
+      console.log('Filtered activeExams:', filtered);
+      return filtered;
+    });
+    
+    // Add to recent activity
+    const exam = exams.find(e => e.id === examToReset);
+    if (exam) {
+      setRecentActivity(prev => [
+        {
+          id: examToReset,
+          title: exam.title,
+          action: 'Reset',
+          timestamp: new Date(),
+          type: 'reset'
+        },
+        ...prev.slice(0, 9) // Keep only last 10 activities
+      ]);
     }
+    
+    // Close modal
+    setShowResetModal(false);
+    setExamToReset(null);
   };
 
   return (
@@ -260,7 +345,7 @@ export default function Dashboard() {
                 </div>
                 
                 <div className="p-6">
-                  {Object.keys(activeExams).length === 0 ? (
+                  {!Array.isArray(activeExams) || activeExams.length === 0 ? (
                     <div className="text-center py-12">
                       <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
                         <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -281,7 +366,7 @@ export default function Dashboard() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {Object.values(activeExams).map((activeExam) => (
+                      {activeExams.map((activeExam) => (
                         <div key={activeExam.examId} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:shadow-md transition-shadow bg-white dark:bg-gray-800">
                           <div className="flex items-center justify-between mb-3">
                             <div>
@@ -366,12 +451,13 @@ export default function Dashboard() {
                     {recentActivity.map((activity, index) => (
                       <div key={index} className="flex items-start">
                         <div className={`w-2 h-2 rounded-full mt-2 mr-3 ${
-                          activity.type === 'completed' ? 'bg-green-500' : 'bg-blue-500'
+                          activity.type === 'completed' ? 'bg-green-500' : 
+                          activity.type === 'reset' ? 'bg-red-500' : 'bg-blue-500'
                         }`}></div>
                         <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">{activity.title}</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{activity.title || 'Untitled Activity'}</p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {activity.type === 'completed' ? 'Completed' : `${activity.progress}% progress`} • {new Date(activity.date).toLocaleDateString()}
+                            {activity.action || 'Activity'} • {activity.timestamp ? activity.timestamp.toLocaleDateString() : 'Unknown date'}
                           </p>
                         </div>
                       </div>
@@ -392,6 +478,23 @@ export default function Dashboard() {
         </main>
       </div>
       )}
+      
+      {/* Reset Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showResetModal}
+        onClose={() => setShowResetModal(false)}
+        onConfirm={handleConfirmReset}
+        title="Reset Exam Progress"
+        message="Are you sure you want to reset this exam? All progress will be lost permanently."
+        confirmText="Reset Exam"
+        cancelText="Cancel"
+        type="danger"
+        icon={
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+          </svg>
+        }
+      />
     </AuthGuard>
   );
 }

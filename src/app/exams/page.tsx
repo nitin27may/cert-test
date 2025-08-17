@@ -1,25 +1,38 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Header from '@/components/Header';
 import { useAvailableExams } from '@/hooks/useExamData';
+import { useExamState } from '@/hooks/useExamState';
+import Header from '@/components/Header';
+import ConfirmationModal from '@/components/ConfirmationModal';
+import { examService } from '@/lib/api/examService';
 import { storage } from '@/lib/utils';
+import { CertificationInfo } from '@/lib/types';
 
 // Helper function to get all exam progress from localStorage
 const getAllExamProgress = () => {
   const progress: Record<string, any> = {};
   try {
+    console.log('Scanning localStorage for exam progress...');
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && key.startsWith('examProgress_')) {
         const examId = key.replace('examProgress_', '');
         const data = localStorage.getItem(key);
         if (data) {
-          progress[examId] = JSON.parse(data);
+          try {
+            const parsedData = JSON.parse(data);
+            progress[examId] = parsedData;
+            console.log(`Found progress for ${examId}:`, parsedData);
+          } catch (parseError) {
+            console.warn(`Could not parse progress data for ${examId}:`, parseError);
+          }
         }
       }
     }
+    console.log('Total exam progress entries found:', Object.keys(progress).length);
   } catch (error) {
     console.error('Error loading exam progress:', error);
   }
@@ -29,6 +42,9 @@ const getAllExamProgress = () => {
 export default function ExamsPage() {
   const [activeExams, setActiveExams] = useState<Record<string, any>>({});
   const [selectedFilter, setSelectedFilter] = useState('all');
+  const [certificationInfoMap, setCertificationInfoMap] = useState<Record<string, any>>({});
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [examToReset, setExamToReset] = useState<string | null>(null);
   const { exams, loading: isLoading, error } = useAvailableExams();
 
   useEffect(() => {
@@ -45,6 +61,30 @@ export default function ExamsPage() {
     });
     setActiveExams(activeExamsData);
   }, []);
+
+  // Load certification info for all exams
+  useEffect(() => {
+    const loadCertificationInfo = async () => {
+      if (exams.length === 0) return;
+      
+      const certificationInfoData: Record<string, CertificationInfo> = {};
+      
+      for (const exam of exams) {
+        try {
+          const examData = await examService.getExamById(exam.id);
+          if (examData && examData.certificationInfo) {
+            certificationInfoData[exam.id] = examData.certificationInfo;
+          }
+        } catch (err) {
+          console.error(`Error loading certification info for ${exam.id}:`, err);
+        }
+      }
+      
+      setCertificationInfoMap(certificationInfoData);
+    };
+
+    loadCertificationInfo();
+  }, [exams]);
 
   const getExamStatus = (examId: string) => {
     const activeExam = activeExams[examId];
@@ -73,7 +113,7 @@ export default function ExamsPage() {
         );
       case 'in-progress':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-green-300">
             <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
@@ -89,6 +129,59 @@ export default function ExamsPage() {
             Not Started
           </span>
         );
+    }
+  };
+
+  const resetExam = (examId: string) => {
+    setExamToReset(examId);
+    setShowResetModal(true);
+  };
+
+  const handleConfirmReset = () => {
+    if (!examToReset) return;
+    
+    // Clear all exam-related data for this exam
+    const examProgressKey = `examProgress_${examToReset}`;
+    const userDataKey = `userData_${examToReset}`;
+    const examConfigKey = `exam-config-${examToReset}`;
+    const examProgressSessionKey = `exam-progress-${examToReset}`;
+    
+    // Clear localStorage
+    localStorage.removeItem(examProgressKey);
+    localStorage.removeItem(userDataKey);
+    
+    // Clear sessionStorage
+    sessionStorage.removeItem(examConfigKey);
+    sessionStorage.removeItem(examProgressSessionKey);
+    
+    // Update local state
+    setActiveExams(prev => {
+      const updated = { ...prev };
+      delete updated[examToReset];
+      return updated;
+    });
+    
+    // Close modal
+    setShowResetModal(false);
+    setExamToReset(null);
+  };
+
+  // Debug function to list all storage keys
+  const debugStorage = () => {
+    console.log('=== LocalStorage Keys ===');
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) {
+        console.log(key);
+      }
+    }
+    
+    console.log('=== SessionStorage Keys ===');
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key) {
+        console.log(key);
+      }
     }
   };
 
@@ -113,8 +206,31 @@ export default function ExamsPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Azure Practice Exams</h1>
-          <p className="text-gray-600 dark:text-gray-300">Choose from our comprehensive collection of Azure certification practice tests.</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Azure Practice Exams</h1>
+              <p className="text-gray-600 dark:text-gray-400">Choose an exam to start practicing for your Azure certification.</p>
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={debugStorage}
+                className="px-3 py-2 text-xs bg-gray-100 text-gray-600 rounded border hover:bg-gray-200 transition-colors"
+                title="Debug: List all storage keys"
+              >
+                Debug Storage
+              </button>
+              <select
+                value={selectedFilter}
+                onChange={(e) => setSelectedFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-400 dark:focus:border-blue-400 transition-colors"
+              >
+                <option value="all">All Exams</option>
+                <option value="not-started">Not Started</option>
+                <option value="in-progress">In Progress</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         {/* Filters */}
@@ -206,9 +322,40 @@ export default function ExamsPage() {
                       {getStatusBadge(status)}
                     </div>
                     
-                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">{exam.title}</h3>
-                    <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">{exam.description}</p>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                      {certificationInfoMap[exam.id]?.title || exam.title}
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">
+                      {certificationInfoMap[exam.id]?.description || exam.description}
+                    </p>
                     
+                    {/* Certification Info Indicator */}
+                    {certificationInfoMap[exam.id] && (
+                      <div className="mb-4 flex items-center space-x-2">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200">
+                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                          </svg>
+                          {certificationInfoMap[exam.id].examCode} - {certificationInfoMap[exam.id].level}
+                        </span>
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200">
+                          {certificationInfoMap[exam.id].validity}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Loading indicator for certification info */}
+                    {!certificationInfoMap[exam.id] && (
+                      <div className="mb-4 flex items-center space-x-2">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                          <svg className="w-3 h-3 mr-1 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                          </svg>
+                          Loading certification info...
+                        </span>
+                      </div>
+                    )}
+
                     {/* Exam Details */}
                     <div className="space-y-2 mb-4">
                       <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
@@ -284,14 +431,15 @@ export default function ExamsPage() {
                         >
                           Continue
                         </Link>
-                        <Link
-                          href={`/exam/${exam.id}/setup`}
+                        <button
+                          onClick={() => resetExam(exam.id)}
                           className="px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                          title="Reset exam progress"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                           </svg>
-                        </Link>
+                        </button>
                       </div>
                     )}
                     
@@ -303,9 +451,13 @@ export default function ExamsPage() {
                         >
                           Practice Again
                         </Link>
-                        <button className="px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                        <button 
+                          onClick={() => resetExam(exam.id)}
+                          className="px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                          title="Reset exam progress"
+                        >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                           </svg>
                         </button>
                       </div>
@@ -330,6 +482,19 @@ export default function ExamsPage() {
           </div>
         )}
       </main>
+
+      {/* Confirmation Modal */}
+      {showResetModal && examToReset && (
+        <ConfirmationModal
+          isOpen={showResetModal}
+          onClose={() => setShowResetModal(false)}
+          onConfirm={handleConfirmReset}
+          title="Confirm Reset"
+          message={`Are you sure you want to reset the progress for "${certificationInfoMap[examToReset]?.title || examToReset.replace('az-', '').toUpperCase()}"? This action cannot be undone.`}
+          confirmText="Reset"
+          cancelText="Cancel"
+        />
+      )}
     </div>
   );
 }

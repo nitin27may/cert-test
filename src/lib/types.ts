@@ -29,6 +29,35 @@ export interface ExamTopic {
   id: string;
   name: string;
   modules: string[];
+  weightage?: number;
+}
+
+export interface CertificationInfo {
+  title: string;
+  description: string;
+  examCode: string;
+  level: string;
+  validity: string;
+  prerequisites: string[];
+  skillsMeasured: Array<{
+    category: string;
+    weightage: number;
+    skills: string[];
+  }>;
+  studyResources: Array<{
+    title: string;
+    type: string;
+    url: string;
+    description: string;
+  }>;
+  examDetails: {
+    duration: string;
+    questions: string;
+    passingScore: string;
+    cost: string;
+    languages: string[];
+  };
+  careerPath: string[];
 }
 
 export interface Exam {
@@ -39,6 +68,7 @@ export interface Exam {
   networkingFocusPercentage?: number;
   topics: ExamTopic[];
   questions: Question[];
+  certificationInfo?: CertificationInfo;
 }
 
 export interface ExamData {

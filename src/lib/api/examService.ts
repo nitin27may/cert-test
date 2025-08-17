@@ -49,29 +49,88 @@ class ExamService {
     }
   }
 
-  async getExamQuestions(examId: string, count?: number, selectedTopics?: string[], difficulty?: string): Promise<Question[]> {
+  async getExamQuestions(examId: string, count?: number, selectedTopics?: string[]): Promise<Question[]> {
     const exam = await this.getExamById(examId);
     if (!exam) {
       throw new Error(`Exam ${examId} not found`);
     }
 
     let questions = exam.questions;
+    console.log(`Total questions in exam: ${questions.length}`);
     
     // Apply topic filtering if provided
     if (selectedTopics && selectedTopics.length > 0) {
-      questions = questions.filter(q => selectedTopics.includes(q.topic));
-    }
-    
-    // Apply difficulty filtering if provided and not 'mix'
-    if (difficulty && difficulty !== 'mix') {
-      questions = questions.filter(q => q.difficulty === difficulty);
+      console.log('Selected topics for filtering:', selectedTopics);
+      console.log('Available question topics:', [...new Set(questions.map(q => q.topic))]);
+      
+      // Create a mapping from topic ID to topic name for filtering
+      const topicIdToNameMap = new Map<string, string>();
+      exam.topics.forEach(topic => {
+        topicIdToNameMap.set(topic.id, topic.name);
+      });
+      
+      console.log('Topic ID to Name mapping:', Object.fromEntries(topicIdToNameMap));
+      
+      const beforeFilter = questions.length;
+      
+      // Filter questions by matching topic ID to question topic
+      questions = questions.filter(q => {
+        // Check if any selected topic ID maps to this question's topic
+        const matches = selectedTopics.some(topicId => {
+          const topicName = topicIdToNameMap.get(topicId);
+          
+          // Try multiple matching strategies
+          if (topicName) {
+            // Strategy 1: Check if question topic contains the topic name
+            if (q.topic.toLowerCase().includes(topicName.toLowerCase())) {
+              return true;
+            }
+            
+            // Strategy 2: Check if topic name contains the question topic
+            if (topicName.toLowerCase().includes(q.topic.toLowerCase())) {
+              return true;
+            }
+            
+            // Strategy 3: Check for common keywords
+            const commonKeywords = ['networking', 'storage', 'identity', 'security', 'monitoring', 'governance'];
+            if (commonKeywords.some(keyword => 
+              q.topic.toLowerCase().includes(keyword) && topicName.toLowerCase().includes(keyword)
+            )) {
+              return true;
+            }
+          }
+          
+          // Strategy 4: Direct topic ID to topic property match (fallback)
+          if (q.topic === topicId) {
+            return true;
+          }
+          
+          return false;
+        });
+        
+        if (matches) {
+          console.log(`Question ${q.id} matches - Topic: ${q.topic}`);
+        }
+        
+        return matches;
+      });
+      
+      const afterFilter = questions.length;
+      
+      console.log(`Topic filtering: ${beforeFilter} -> ${afterFilter} questions`);
+      console.log('Questions after topic filtering:', questions.map(q => ({ id: q.id, topic: q.topic })));
+    } else {
+      console.log('No topic filtering applied');
     }
     
     // Shuffle questions for variety
     questions = this.shuffleArray([...questions]);
     
     // Return specified count or all questions
-    return count ? questions.slice(0, count) : questions;
+    const finalQuestions = count ? questions.slice(0, count) : questions;
+    console.log(`Returning ${finalQuestions.length} questions (requested: ${count || 'all'})`);
+    
+    return finalQuestions;
   }
 
   async getAvailableExams(): Promise<Array<{ id: string; title: string; description: string; totalQuestions: number; networkingFocusPercentage?: number }>> {
