@@ -6,6 +6,7 @@ import Header from '@/components/Header';
 import { useExamData } from '@/hooks/useExamData';
 import { examService } from '@/lib/api/examService';
 import { CertificationInfo } from '@/lib/types';
+import Link from 'next/link';
 
 // Helper function to update exam progress in localStorage
 const updateExamProgress = (examId: string, progressData: any) => {
@@ -50,49 +51,10 @@ export default function ExamSetupPage() {
   useEffect(() => {
     const loadCertificationInfo = async () => {
       try {
-        console.log('Loading certification info for exam:', examId);
         const examData = await examService.getExamById(examId);
-        console.log('Exam data loaded:', examData);
-        console.log('Exam data structure:', JSON.stringify(examData, null, 2));
         
         if (examData && examData.certificationInfo) {
-          console.log('Certification info found:', examData.certificationInfo);
-          console.log('Certification info structure:', JSON.stringify(examData.certificationInfo, null, 2));
           setCertificationInfo(examData.certificationInfo);
-        } else {
-          console.log('No certification info found in exam data');
-          console.log('Exam data structure:', examData);
-          if (examData) {
-            console.log('Available properties:', Object.keys(examData));
-            console.log('certificationInfo property:', examData.certificationInfo);
-            
-            // Check for different possible property names
-            const possibleNames = ['certificationInfo', 'certification_info', 'certification', 'info', 'details'];
-            for (const name of possibleNames) {
-              if (name in examData && (examData as any)[name]) {
-                console.log(`Found property "${name}":`, (examData as any)[name]);
-              }
-            }
-            
-            // Check for nested properties
-            if ((examData as any).exam && (examData as any).exam.certificationInfo) {
-              console.log('Found nested certificationInfo in exam.exam:', (examData as any).exam.certificationInfo);
-            }
-            
-            // Check the first level structure
-            console.log('First level properties:', Object.keys(examData));
-            if ((examData as any).exams) {
-              console.log('Found exams property, checking structure...');
-              const examFromExams = (examData as any).exams[examId];
-              if (examFromExams) {
-                console.log('Exam from exams property:', examFromExams);
-                console.log('Exam properties:', Object.keys(examFromExams));
-                if (examFromExams.certificationInfo) {
-                  console.log('Found certificationInfo in exams[examId]:', examFromExams.certificationInfo);
-                }
-              }
-            }
-          }
         }
       } catch (err) {
         console.error('Error loading certification info:', err);
@@ -111,12 +73,6 @@ export default function ExamSetupPage() {
   };
 
   const handleStartExam = () => {
-    console.log('Start exam button clicked');
-    console.log('Selected topics:', selectedTopics);
-    console.log('Question count:', questionCount);
-    console.log('Time limit:', timeLimit);
-    console.log('Difficulty:', difficulty);
-    
     if (selectedTopics.length === 0) {
       alert('Please select at least one topic');
       return;
@@ -129,7 +85,7 @@ export default function ExamSetupPage() {
       timeLimit,
       difficulty
     };
-    console.log('Storing config in sessionStorage:', config);
+    
     sessionStorage.setItem(`exam-config-${examId}`, JSON.stringify(config));
     
     // Initialize exam progress in localStorage
@@ -137,19 +93,13 @@ export default function ExamSetupPage() {
       currentQuestionIndex: 0,
       userAnswers: {},
       checkedAnswers: {},
-      timeRemaining: timeLimit * 60, // Convert minutes to seconds
       startedAt: Date.now(),
-      status: 'in-progress',
-      progress: 1, // 1% to show as started
       examId: examId,
-      examTitle: certificationInfo?.title || exam?.title || '',
-      config: config
+      examTitle: certificationInfo?.title || exam?.title || ''
     };
     
-    console.log('Storing initial progress in localStorage:', initialProgress);
-    updateExamProgress(examId, initialProgress);
+    localStorage.setItem(`exam-progress-${examId}`, JSON.stringify(initialProgress));
     
-    console.log('Navigating to practice page...');
     // Navigate to practice page
     router.push(`/exam/${examId}/practice`);
   };
@@ -220,24 +170,17 @@ export default function ExamSetupPage() {
             </div>
           </div>
 
-          {/* Temporary Debug Info */}
-          <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
-            <h4 className="font-medium text-yellow-800 dark:text-yellow-200 mb-2">Debug Info (Temporary)</h4>
-            <div className="text-sm text-yellow-700 dark:text-yellow-300">
-              <p>Certification Info Status: {certificationInfo ? 'Loaded' : 'Not Loaded'}</p>
-              <p>Exam ID: {examId}</p>
-              <p>Title Source: {certificationInfo ? certificationInfo.title : 'exam.title'}</p>
-              <p>Description Source: {certificationInfo ? certificationInfo.description : 'exam.description'}</p>
-              {certificationInfo && (
-                <>
-                  <p>Certification Title: {certificationInfo.title}</p>
-                  <p>Exam Code: {certificationInfo.examCode}</p>
-                  <p>Level: {certificationInfo.level}</p>
-            
-                </>
-              )}
-  
-            </div>
+          {/* Info Button */}
+          <div className="flex justify-end mb-6">
+            <Link
+              href={`/exam/${examId}/certification-info`}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              Certification Info
+            </Link>
           </div>
 
           {/* Info Button Explanation */}

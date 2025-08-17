@@ -15,7 +15,6 @@ import { CertificationInfo } from '@/lib/types';
 const getAllExamProgress = () => {
   const progress: Record<string, any> = {};
   try {
-    console.log('Scanning localStorage for exam progress...');
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && key.startsWith('examProgress_')) {
@@ -25,14 +24,12 @@ const getAllExamProgress = () => {
           try {
             const parsedData = JSON.parse(data);
             progress[examId] = parsedData;
-            console.log(`Found progress for ${examId}:`, parsedData);
           } catch (parseError) {
             console.warn(`Could not parse progress data for ${examId}:`, parseError);
           }
         }
       }
     }
-    console.log('Total exam progress entries found:', Object.keys(progress).length);
   } catch (error) {
     console.error('Error loading exam progress:', error);
   }
@@ -166,25 +163,6 @@ export default function ExamsPage() {
     setExamToReset(null);
   };
 
-  // Debug function to list all storage keys
-  const debugStorage = () => {
-    console.log('=== LocalStorage Keys ===');
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key) {
-        console.log(key);
-      }
-    }
-    
-    console.log('=== SessionStorage Keys ===');
-    for (let i = 0; i < sessionStorage.length; i++) {
-      const key = sessionStorage.key(i);
-      if (key) {
-        console.log(key);
-      }
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -212,13 +190,6 @@ export default function ExamsPage() {
               <p className="text-gray-600 dark:text-gray-400">Choose an exam to start practicing for your Azure certification.</p>
             </div>
             <div className="flex space-x-3">
-              <button
-                onClick={debugStorage}
-                className="px-3 py-2 text-xs bg-gray-100 text-gray-600 rounded border hover:bg-gray-200 transition-colors"
-                title="Debug: List all storage keys"
-              >
-                Debug Storage
-              </button>
               <select
                 value={selectedFilter}
                 onChange={(e) => setSelectedFilter(e.target.value)}

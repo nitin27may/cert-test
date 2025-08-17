@@ -56,20 +56,14 @@ class ExamService {
     }
 
     let questions = exam.questions;
-    console.log(`Total questions in exam: ${questions.length}`);
     
     // Apply topic filtering if provided
     if (selectedTopics && selectedTopics.length > 0) {
-      console.log('Selected topics for filtering:', selectedTopics);
-      console.log('Available question topics:', [...new Set(questions.map(q => q.topic))]);
-      
       // Create a mapping from topic ID to topic name for filtering
       const topicIdToNameMap = new Map<string, string>();
       exam.topics.forEach(topic => {
         topicIdToNameMap.set(topic.id, topic.name);
       });
-      
-      console.log('Topic ID to Name mapping:', Object.fromEntries(topicIdToNameMap));
       
       const beforeFilter = questions.length;
       
@@ -108,19 +102,10 @@ class ExamService {
           return false;
         });
         
-        if (matches) {
-          console.log(`Question ${q.id} matches - Topic: ${q.topic}`);
-        }
-        
         return matches;
       });
       
       const afterFilter = questions.length;
-      
-      console.log(`Topic filtering: ${beforeFilter} -> ${afterFilter} questions`);
-      console.log('Questions after topic filtering:', questions.map(q => ({ id: q.id, topic: q.topic })));
-    } else {
-      console.log('No topic filtering applied');
     }
     
     // Shuffle questions for variety
@@ -128,7 +113,6 @@ class ExamService {
     
     // Return specified count or all questions
     const finalQuestions = count ? questions.slice(0, count) : questions;
-    console.log(`Returning ${finalQuestions.length} questions (requested: ${count || 'all'})`);
     
     return finalQuestions;
   }

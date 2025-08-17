@@ -178,9 +178,6 @@ export default function Dashboard() {
   const handleConfirmReset = () => {
     if (!examToReset) return;
     
-    console.log('Resetting exam:', examToReset);
-    console.log('Current activeExams state:', activeExams);
-    
     // Clear all exam-related data for this exam
     const examProgressKey = `examProgress_${examToReset}`;
     const userDataKey = `userData_${examToReset}`;
@@ -197,14 +194,10 @@ export default function Dashboard() {
     
     // Update local state
     setActiveExams(prev => {
-      console.log('Updating activeExams, prev value:', prev);
       if (!Array.isArray(prev)) {
-        console.warn('activeExams is not an array, initializing as empty array');
         return [];
       }
-      const filtered = prev.filter(exam => exam.examId !== examToReset);
-      console.log('Filtered activeExams:', filtered);
-      return filtered;
+      return prev.filter(exam => exam.examId !== examToReset);
     });
     
     // Add to recent activity

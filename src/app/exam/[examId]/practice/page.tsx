@@ -65,42 +65,25 @@ export default function ExamPracticePage() {
   const [questionCount, setQuestionCount] = useState<number>(20);
   
   useEffect(() => {
-    console.log('Practice page loading for exam:', examId);
     const configStr = sessionStorage.getItem(`exam-config-${examId}`);
-    console.log('Config from sessionStorage:', configStr);
     
     if (!configStr) {
-      console.log('No config found, redirecting to setup');
       router.push(`/exam/${examId}/setup`);
       return;
     }
     
     try {
       const examConfig: ExamConfig = JSON.parse(configStr);
-      console.log('Parsed exam config:', examConfig);
       setConfig(examConfig);
       setQuestionCount(examConfig.questionCount);
     } catch (error) {
       console.error('Error parsing exam config:', error);
-      console.log('Redirecting to setup due to config parsing error');
       router.push(`/exam/${examId}/setup`);
     }
   }, [examId, router]);
 
   const { exam, questions, loading: isLoading, error } = useExamData(examId, questionCount, config?.selectedTopics);
   
-  // Debug logging for questions
-  useEffect(() => {
-    console.log('Practice page - Exam data loaded:', { exam, questions, loading: isLoading, error });
-    console.log('Practice page - Config:', config);
-    console.log('Practice page - Question count:', questionCount);
-    console.log('Practice page - Selected topics:', config?.selectedTopics);
-    console.log('Practice page - Questions array length:', questions?.length || 0);
-    if (questions && questions.length > 0) {
-      console.log('Practice page - First few questions:', questions.slice(0, 3).map(q => ({ id: q.id, topic: q.topic, question: q.question.substring(0, 100) + '...' })));
-    }
-  }, [exam, questions, isLoading, error, config, questionCount]);
-
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<Record<number, number | number[]>>({});
   const [showExplanation, setShowExplanation] = useState(false);
@@ -371,22 +354,6 @@ export default function ExamPracticePage() {
                   className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
                 >
                   Reload Page
-                </button>
-                <button
-                  onClick={() => {
-                    console.log('=== DEBUG: Topic Filtering Information ===');
-                    console.log('Exam ID:', examId);
-                    console.log('Config:', config);
-                    console.log('Selected Topics:', config?.selectedTopics);
-                    console.log('Question Count:', questionCount);
-                    console.log('Exam Data:', exam);
-                    console.log('Questions Array:', questions);
-                    console.log('Error:', error);
-                    console.log('==========================================');
-                  }}
-                  className="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-                >
-                  Debug Info
                 </button>
               </div>
             </div>
