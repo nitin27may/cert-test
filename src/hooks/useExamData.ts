@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react';
 import { examService } from '../lib/api/examService';
-import { Exam, Question } from '../lib/types';
+import { Exam, Question, ParsedExam, ParsedQuestion } from '../lib/types';
 
 interface UseExamDataResult {
-  exam: Exam | null;
-  questions: Question[];
+  exam: ParsedExam | null;
+  questions: ParsedQuestion[];
   loading: boolean;
   error: string | null;
   refetch: () => void;
 }
 
 export function useExamData(examId: string, questionCount?: number, selectedTopics?: string[]): UseExamDataResult {
-  const [exam, setExam] = useState<Exam | null>(null);
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [exam, setExam] = useState<ParsedExam | null>(null);
+  const [questions, setQuestions] = useState<ParsedQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

@@ -1,13 +1,21 @@
 -- Supabase Database Schema for Exam System
 -- This schema migrates exam.json data to a proper relational structure
 
--- Enable Row Level Security
-ALTER DATABASE postgres SET "app.settings.jwt_secret_is_base64" = false;
-
--- Create custom types
-CREATE TYPE exam_difficulty AS ENUM ('easy', 'medium', 'difficult');
-CREATE TYPE question_type AS ENUM ('single', 'multiple');
-CREATE TYPE session_status AS ENUM ('in_progress', 'completed', 'paused', 'abandoned');
+-- Create custom types (with checks to avoid errors if they already exist)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'exam_difficulty') THEN
+        CREATE TYPE exam_difficulty AS ENUM ('easy', 'medium', 'difficult');
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'question_type') THEN
+        CREATE TYPE question_type AS ENUM ('single', 'multiple', 'case-study');
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'session_status') THEN
+        CREATE TYPE session_status AS ENUM ('in_progress', 'completed', 'paused', 'abandoned');
+    END IF;
+END $$;
 
 -- 1. EXAMS table - stores exam metadata
 CREATE TABLE IF NOT EXISTS exams (

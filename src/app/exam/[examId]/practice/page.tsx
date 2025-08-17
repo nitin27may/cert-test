@@ -1,209 +1,288 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useExamData } from '@/hooks/useExamData';
-import { useExamState } from '@/hooks/useExamState';
-import { Question } from '@/lib/types';
+import { ParsedQuestion } from '@/lib/types';
 import Header from '@/components/Header';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import { useAuth } from '@/contexts/AuthContext';
-import { AuthService } from '@/lib/auth/authService';
-
-interface ExamConfig {
-  selectedTopics: string[];
-  questionCount: number;
-  timeLimit: number;
-  difficulty?: string;
-}
+import { useOptimizedExamSession } from '@/hooks/useOptimizedExamSession';
+import { supabaseExamService } from '@/lib/services/supabaseService';
+import { realtimeService } from '@/lib/services/realtimeService';
 
 export default function ExamPracticePage() {
   const params = useParams();
   const router = useRouter();
   const examId = params.examId as string;
   const { user } = useAuth();
-  
-  // Helper function to update exam progress in localStorage (can be moved to Supabase later)
-  const updateExamProgress = async (examId: string, progress: any) => {
-    try {
-      const session = await AuthService.getSession();
-      const userId = session?.user?.id || 'anonymous';
-      const userDataKey = `userData_${userId}`;
-      
-      const stored = localStorage.getItem(userDataKey);
-      const userData = stored ? JSON.parse(stored) : { examProgress: {}, examHistory: [] };
-      
-      userData.examProgress = userData.examProgress || {};
-      userData.examProgress[examId] = progress;
-      
-      localStorage.setItem(userDataKey, JSON.stringify(userData));
-    } catch (error) {
-      console.error('Error updating exam progress:', error);
-    }
-  };
+  const [sessionState, sessionActions] = useOptimizedExamSession();
 
-  const addExamToHistory = async (results: any) => {
-    try {
-      const session = await AuthService.getSession();
-      const userId = session?.user?.id || 'anonymous';
-      const userDataKey = `userData_${userId}`;
-      
-      const stored = localStorage.getItem(userDataKey);
-      const userData = stored ? JSON.parse(stored) : { examProgress: {}, examHistory: [] };
-      
-      userData.examHistory = userData.examHistory || [];
-      userData.examHistory.push(results);
-      
-      localStorage.setItem(userDataKey, JSON.stringify(userData));
-    } catch (error) {
-      console.error('Error adding exam to history:', error);
-    }
-  };
-  
-  // Load configuration from sessionStorage
-  const [config, setConfig] = useState<ExamConfig | null>(null);
-  const [questionCount, setQuestionCount] = useState<number>(20);
-  
-  useEffect(() => {
-    const configStr = sessionStorage.getItem(`exam-config-${examId}`);
-    
-    if (!configStr) {
-      router.push(`/exam/${examId}/setup`);
-      return;
-    }
-    
-    try {
-      const examConfig: ExamConfig = JSON.parse(configStr);
-      setConfig(examConfig);
-      setQuestionCount(examConfig.questionCount);
-    } catch (error) {
-      console.error('Error parsing exam config:', error);
-      router.push(`/exam/${examId}/setup`);
-    }
-  }, [examId, router]);
-
-  const { exam, questions, loading: isLoading, error } = useExamData(examId, questionCount, config?.selectedTopics);
-  
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<Record<number, number | number[]>>({});
   const [showExplanation, setShowExplanation] = useState(false);
   const [checkedAnswers, setCheckedAnswers] = useState<Record<number, boolean>>({});
-  const [timeRemaining, setTimeRemaining] = useState(0);
   const [showPauseModal, setShowPauseModal] = useState(false);
+  const [isBooting, setIsBooting] = useState(false);
+  const bootCompletedRef = useRef(false);
 
-  // Initialize timer when config is loaded
-  useEffect(() => {
-    if (config && timeRemaining === 0) {
-      setTimeRemaining(config.timeLimit * 60); // Convert minutes to seconds
-    }
-  }, [config]);
+  const questions: ParsedQuestion[] = useMemo(() => sessionState.session?.questions || [], [sessionState.session]);
+  const currentQuestionIndex = sessionState.currentQuestionIndex;
+  const currentQuestion: ParsedQuestion | undefined = sessionState.currentQuestion || questions[currentQuestionIndex];
+  const examTitle = useMemo(() => sessionState.session?.exam_id || examId, [sessionState.session, examId]);
 
-  // Timer effect
-  useEffect(() => {
-    if (timeRemaining <= 0) return;
+  // Calculate time remaining based on database time spent
+  const timeRemaining = useMemo(() => {
+    const defaultTimeLimit = 90; // Default 90 minutes
+    const total = defaultTimeLimit * 60;
+    const timeSpent = sessionState.timeSpent || 0;
+    const remaining = total - timeSpent;
+    return remaining > 0 ? remaining : 0;
+  }, [sessionState.timeSpent]);
 
-    const timer = setInterval(() => {
-      setTimeRemaining(prev => {
-        if (prev <= 1) {
-          // Time's up
-          handleFinishExam();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [timeRemaining]);
-
-  // Redirect if there's an error loading exam data
-  useEffect(() => {
-    if (error) {
-      console.error('Failed to load exam:', error);
-      router.push('/');
-    }
-  }, [error, router]);
-
+  // Format time for display
   const formatTime = (seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  const handleAnswerSelect = (answerIndex: number) => {
+  // Start or resume a DB-backed session - only run once
+  useEffect(() => {
+    if (bootCompletedRef.current || isBooting || !user?.id || !sessionActions.createSession || !sessionActions.loadSession) {
+      console.log('Boot skipped:', { 
+        bootCompleted: bootCompletedRef.current, 
+        isBooting, 
+        hasUser: !!user?.id,
+        hasCreateSession: !!sessionActions.createSession,
+        hasLoadSession: !!sessionActions.loadSession
+      });
+      return;
+    }
+    
+    console.log('Starting session boot for exam:', examId);
+    
+    const boot = async () => {
+      setIsBooting(true);
+      try {
+        // Try to find an existing in-progress or paused session for this exam
+        const { sessions } = await supabaseExamService.getUserSessions(user.id);
+        const existing = sessions.find(s => s.exam_id === examId && (s.status === 'in_progress' || s.status === 'paused'));
+        
+        if (existing) {
+          // Resume existing session
+          console.log('Found existing session, resuming:', existing.id, 'Status:', existing.status);
+          await sessionActions.loadSession(existing.id, user.id);
+          console.log('Resumed existing session:', existing.id);
+          
+          // Check if session was loaded correctly
+          setTimeout(() => {
+            console.log('Session state after loading:', {
+              session: sessionState.session,
+              currentQuestion: sessionState.currentQuestion,
+              currentQuestionIndex: sessionState.currentQuestionIndex,
+              answers: sessionState.answers?.size || 0
+            });
+          }, 1000);
+        } else {
+          // Create new session with default config
+          console.log('No existing session, creating new one');
+          await sessionActions.createSession(user.id, {
+            exam_id: examId,
+            selected_topics: [], // Will be set by the setup page
+            question_limit: 20 // Default question limit
+          } as any);
+          console.log('Created new session for exam:', examId);
+        }
+        bootCompletedRef.current = true;
+        console.log('Boot completed successfully');
+      } catch (error) {
+        console.error('Failed to boot session:', error);
+        // Fallback: try to create session anyway
+        try {
+          await sessionActions.createSession(user.id, {
+            exam_id: examId,
+            selected_topics: [],
+            question_limit: 20
+          } as any);
+          bootCompletedRef.current = true;
+          console.log('Fallback session creation succeeded');
+        } catch (fallbackError) {
+          console.error('Fallback session creation failed:', fallbackError);
+        }
+      } finally {
+        setIsBooting(false);
+      }
+    };
+    
+    boot();
+  }, [user?.id, examId, isBooting, sessionActions.createSession, sessionActions.loadSession]);
+
+  // Cleanup when examId changes
+  useEffect(() => {
+    return () => {
+      bootCompletedRef.current = false;
+      setIsBooting(false);
+    };
+  }, [examId]);
+
+  // Load answers from database when session loads
+  useEffect(() => {
+    if (sessionState.session?.id) {
+      console.log('Session loaded, attempting to load answers:', {
+        sessionId: sessionState.session.id,
+        hasAnswers: !!sessionState.answers,
+        answersSize: sessionState.answers?.size || 0,
+        sessionStatus: sessionState.session.status
+      });
+      
+      // If we have answers in the session state, load them
+      if (sessionState.answers && sessionState.answers.size > 0) {
+        const answersFromDb: Record<number, number | number[]> = {};
+        sessionState.answers.forEach((answer, questionId) => {
+          // Find the question index by question ID
+          const questionIndex = questions.findIndex(q => q.id === questionId);
+          if (questionIndex !== -1) {
+            answersFromDb[questionIndex] = answer.user_answer;
+          }
+        });
+        
+        setUserAnswers(answersFromDb);
+        console.log('Loaded answers from session state:', answersFromDb);
+      } else {
+        // If no answers in session state, try to load them directly from the database
+        loadAnswersFromDatabase(sessionState.session.id);
+      }
+    } else {
+      console.log('No session to load answers from');
+    }
+  }, [sessionState.session?.id, sessionState.answers, questions]);
+
+  // Function to load answers directly from database
+  const loadAnswersFromDatabase = async (sessionId: string) => {
+    try {
+      console.log('Loading answers directly from database for session:', sessionId);
+      const answers = await supabaseExamService.getSessionAnswers(sessionId);
+
+      if (answers && answers.length > 0) {
+        const answersFromDb: Record<number, number | number[]> = {};
+        answers.forEach((answer: any) => {
+          // Find the question index by question ID
+          const questionIndex = questions.findIndex(q => q.id === answer.question_id);
+          if (questionIndex !== -1) {
+            // Parse the user_answer JSON
+            try {
+              const parsedAnswer = JSON.parse(answer.user_answer);
+              answersFromDb[questionIndex] = parsedAnswer;
+            } catch (parseError) {
+              console.error('Error parsing user_answer:', parseError);
+            }
+          }
+        });
+        
+        setUserAnswers(answersFromDb);
+        console.log('Loaded answers directly from database:', answersFromDb);
+      } else {
+        console.log('No answers found in database for session:', sessionId);
+      }
+    } catch (error) {
+      console.error('Failed to load answers from database:', error);
+    }
+  };
+
+  // Remove the duplicate real-time setup since useOptimizedExamSession handles it
+  // The hook already sets up real-time sync when a session is created/loaded
+
+  const handleAnswerSelect = async (answerIndex: number) => {
     if (showExplanation) return;
     
-    const currentQuestion = questions[currentQuestionIndex];
+    const question = questions[currentQuestionIndex];
     
-    setUserAnswers(prev => {
-      if (currentQuestion.type === 'multiple') {
-        // Handle multiple selection
-        const currentAnswers = prev[currentQuestionIndex] as number[] || [];
-        const isSelected = currentAnswers.includes(answerIndex);
-        
-        if (isSelected) {
-          // Remove from selection
-          const newAnswers = currentAnswers.filter(idx => idx !== answerIndex);
-          return {
-            ...prev,
-            [currentQuestionIndex]: newAnswers.length > 0 ? newAnswers : []
-          };
-        } else {
-          // Add to selection
-          return {
-            ...prev,
-            [currentQuestionIndex]: [...currentAnswers, answerIndex]
-          };
-        }
+    // Calculate the new answer value
+    let newAnswer: number | number[];
+    
+    if (question.type === 'multiple') {
+      // Handle multiple selection
+      const currentAnswers = userAnswers[currentQuestionIndex] as number[] || [];
+      const isSelected = currentAnswers.includes(answerIndex);
+      
+      if (isSelected) {
+        // Remove from selection
+        newAnswer = currentAnswers.filter(idx => idx !== answerIndex);
       } else {
-        // Handle single selection
-        return {
-          ...prev,
-          [currentQuestionIndex]: answerIndex
-        };
+        // Add to selection
+        newAnswer = [...currentAnswers, answerIndex];
       }
-    });
+    } else {
+      // Handle single selection
+      newAnswer = answerIndex;
+    }
+
+    // Update local state immediately for UI responsiveness
+    setUserAnswers(prev => ({
+      ...prev,
+      [currentQuestionIndex]: newAnswer
+    }));
+
+    // Save answer to database immediately
+    try {
+      const answerArray = Array.isArray(newAnswer) ? newAnswer : [newAnswer];
+      
+      // Submit answer to database via the session hook
+      await sessionActions.submitAnswer(question.id, answerArray, 0);
+      console.log('Answer saved to database:', answerArray);
+    } catch (error) {
+      console.error('Failed to save answer to database:', error);
+      // Optionally show error to user
+    }
   };
 
   const handleNext = () => {
-    if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(prev => prev + 1);
-      setShowExplanation(false);
-    }
+    sessionActions.nextQuestion();
+    setShowExplanation(false);
   };
 
   const handlePrevious = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(prev => prev - 1);
-      setShowExplanation(false);
-    }
+    sessionActions.previousQuestion();
+    setShowExplanation(false);
   };
 
-  const handleCheckAnswer = () => {
-    setShowExplanation(true);
-    setCheckedAnswers(prev => ({
-      ...prev,
-      [currentQuestionIndex]: true
-    }));
+  const handleCheckAnswer = async () => {
+    if (!currentQuestion || !sessionState.session) return;
+    
+    try {
+      setShowExplanation(true);
+      setCheckedAnswers(prev => ({ ...prev, [currentQuestionIndex]: true }));
+      
+      // Answer is already saved to database in handleAnswerSelect
+      // Just mark it as checked for UI purposes
+      console.log('Answer checked successfully');
+      
+    } catch (error) {
+      console.error('Failed to check answer:', error);
+      // Revert the check state if there was an error
+      setCheckedAnswers(prev => ({ ...prev, [currentQuestionIndex]: false }));
+      setShowExplanation(false);
+    }
   };
 
   const handlePauseTest = () => {
     setShowPauseModal(true);
   };
 
-  const handleConfirmPause = () => {
-    // Save current progress
-    const currentProgress = {
-      currentQuestionIndex,
-      userAnswers,
-      checkedAnswers,
-      timeRemaining
-    };
+  const handleConfirmPause = async () => {
+    if (!sessionState.session) return;
     
-    sessionStorage.setItem(`exam-progress-${examId}`, JSON.stringify(currentProgress));
-    
-    // Navigate back to dashboard
-    router.push('/dashboard');
+    try {
+      // Pause the session via the hook (which updates the database)
+      await sessionActions.pauseSession();
+      
+      // Navigate back to dashboard
+      router.push('/dashboard');
+      
+    } catch (error) {
+      console.error('Failed to pause session:', error);
+      // Show error to user
+      alert('Failed to pause exam. Please try again.');
+    }
   };
 
   const getQuestionStatus = (questionIndex: number) => {
@@ -215,95 +294,58 @@ export default function ExamPracticePage() {
     
     const userAnswer = userAnswers[questionIndex];
     const question = questions[questionIndex];
-    const correctAnswers = Array.isArray(question.correct) ? question.correct : [question.correct];
+    
+    if (!question) return 'unknown';
+    
+    // Handle both old and new question format - use correct_answers from ParsedQuestion
+    const correctAnswers = question.correct_answers;
+    if (!correctAnswers) return 'unknown';
     
     let isCorrect = false;
     if (question.type === 'multiple') {
       const userAnswerArray = Array.isArray(userAnswer) ? userAnswer : [];
+      const correctAnswersArray = Array.isArray(correctAnswers) ? correctAnswers : [correctAnswers];
+      
       // Check if user selected exactly the correct answers
-      isCorrect = userAnswerArray.length === correctAnswers.length &&
-                  userAnswerArray.every(ans => correctAnswers.includes(ans));
+      isCorrect = userAnswerArray.length === correctAnswersArray.length &&
+                  userAnswerArray.every(ans => correctAnswersArray.includes(ans));
     } else {
-      isCorrect = userAnswer === question.correct;
+      isCorrect = userAnswer === correctAnswers;
     }
     
     return isCorrect ? 'correct' : 'incorrect';
   };
 
-  const handleFinishExam = () => {
-    // Calculate score
-    let correctAnswers = 0;
-    questions.forEach((question, index) => {
-      const userAnswer = userAnswers[index];
-      const correctAnswer = question.correct;
+  const handleFinishExam = async () => {
+    if (!sessionState.session) return;
+    
+    try {
+      // Complete the session via the database service
+      const result = await supabaseExamService.completeSession(sessionState.session.id);
       
-      if (question.type === 'multiple') {
-        const userAnswerArray = Array.isArray(userAnswer) ? userAnswer : [];
-        const correctAnswersArray = Array.isArray(correctAnswer) ? correctAnswer : [correctAnswer];
-        
-        // Check if user selected exactly the correct answers
-        if (userAnswerArray.length === correctAnswersArray.length &&
-            userAnswerArray.every(ans => correctAnswersArray.includes(ans))) {
-          correctAnswers++;
-        }
-      } else {
-        if (userAnswer === correctAnswer) {
-          correctAnswers++;
-        }
-      }
-    });
-
-    const score = Math.round((correctAnswers / questions.length) * 100);
-    
-    // Store results
-    const results = {
-      examId,
-      score,
-      correctAnswers,
-      totalQuestions: questions.length,
-      timeSpent: config ? (config.timeLimit * 60 - timeRemaining) : 0,
-      answers: userAnswers,
-      completedAt: new Date().toISOString(),
-      title: exam?.title || ''
-    };
-    
-    sessionStorage.setItem(`exam-results-${examId}`, JSON.stringify(results));
-    
-    // Update exam progress to completed (100%)
-    const completedProgress = {
-      status: 'completed',
-      progress: 100,
-      score: score,
-      correctAnswers: correctAnswers,
-      totalQuestions: questions.length,
-      completedAt: new Date().toISOString(),
-      examId: examId,
-      examTitle: exam?.title || ''
-    };
-    
-    updateExamProgress(examId, completedProgress);
-    
-    // Add to exam history
-    addExamToHistory(results);
-    
-    // Clear sessionStorage for this exam
-    sessionStorage.removeItem(`exam-progress-${examId}`);
-    sessionStorage.removeItem(`exam-config-${examId}`);
-    
-    // Navigate to results page (you can create this later)
-    alert(`Exam completed! Score: ${score}% (${correctAnswers}/${questions.length})`);
-    router.push('/dashboard');
+      console.log('Exam completed successfully:', result);
+      
+      // Navigate to results or dashboard
+      alert(`Exam completed! Score: ${result.result.score_percentage}%`);
+      router.push('/dashboard');
+      
+    } catch (error) {
+      console.error('Failed to complete exam:', error);
+      alert('Failed to complete exam. Please try again.');
+    }
   };
 
-  if (isLoading) {
+  if (sessionState.isLoading || !sessionState.session || !currentQuestion || isBooting) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-lg text-gray-900 dark:text-white">Loading exam...</div>
+        <div className="text-lg text-gray-900 dark:text-white">
+          {isBooting ? 'Starting exam session...' : 'Loading session...'}
+        </div>
       </div>
     );
   }
 
-  if (!exam || questions.length === 0) {
+  if (questions.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <Header />
@@ -321,12 +363,12 @@ export default function ExamPracticePage() {
                 <h3 className="font-medium text-yellow-800 dark:text-yellow-200 mb-3">Debug Information</h3>
                 <div className="text-sm text-yellow-700 dark:text-yellow-300 text-left space-y-2">
                   <p><strong>Exam ID:</strong> {examId}</p>
-                  <p><strong>Config Loaded:</strong> {config ? 'Yes' : 'No'}</p>
-                  <p><strong>Selected Topics:</strong> {config?.selectedTopics?.join(', ') || 'None'}</p>
-                  <p><strong>Question Count:</strong> {questionCount}</p>
-                  <p><strong>Exam Data:</strong> {exam ? 'Loaded' : 'Not Loaded'}</p>
+                  <p><strong>Config Loaded:</strong> {sessionState.session ? 'Yes' : 'No'}</p>
+                  <p><strong>Selected Topics:</strong> {sessionState.session?.selected_topics?.join(', ') || 'None'}</p>
+                  <p><strong>Question Count:</strong> {sessionState.session?.question_limit}</p>
+                  <p><strong>Session:</strong> {sessionState.session ? 'Loaded' : 'Not Loaded'}</p>
                   <p><strong>Questions Array:</strong> {questions?.length || 0} questions</p>
-                  <p><strong>Error:</strong> {error || 'None'}</p>
+                  <p><strong>Error:</strong> {sessionState.error || 'None'}</p>
                 </div>
               </div>
               
@@ -363,7 +405,8 @@ export default function ExamPracticePage() {
     );
   }
 
-  const currentQuestion = questions[currentQuestionIndex];
+  // Remove the duplicate currentQuestion declaration and use the one from sessionState
+  // const currentQuestion = questions[currentQuestionIndex];
   const userAnswer = userAnswers[currentQuestionIndex];
 
   return (
@@ -374,7 +417,7 @@ export default function ExamPracticePage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6 border border-gray-100 dark:border-gray-700">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">{exam.title}</h1>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">{examTitle}</h1>
               <p className="text-gray-600 dark:text-gray-300">
                 Question {currentQuestionIndex + 1} of {questions.length}
               </p>
@@ -414,22 +457,18 @@ export default function ExamPracticePage() {
               <div className="mb-4 flex flex-wrap gap-2">
                 <span className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs px-2 py-1 rounded-full">
                   {/* Find topic name from topic ID */}
-                  {exam?.topics.find(t => t.id === currentQuestion.topic)?.name || currentQuestion.topic}
+                  {currentQuestion.topic_id || 'Unknown Topic'}
                 </span>
                 {currentQuestion.difficulty && (
-                  <span className={`inline-block text-xs px-2 py-1 rounded-full ${
-                    currentQuestion.difficulty === 'easy' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
-                    currentQuestion.difficulty === 'medium' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
-                    'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
-                  }`}>
-                    {currentQuestion.difficulty.charAt(0).toUpperCase() + currentQuestion.difficulty.slice(1)}
+                  <span className="inline-block bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-xs px-2 py-1 rounded-full ml-2">
+                    {currentQuestion.difficulty}
                   </span>
                 )}
               </div>
               
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                {currentQuestion.question}
-              </h2>
+              <div className="text-lg font-medium text-gray-900 dark:text-white mb-6">
+                {currentQuestion.question_text}
+              </div>
 
               {/* Question type indicator */}
               <div className="mb-4 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
@@ -444,9 +483,7 @@ export default function ExamPracticePage() {
               <div className="space-y-3">
                 {currentQuestion.options.map((option, index) => {
                   const userAnswer = userAnswers[currentQuestionIndex];
-                  const correctAnswers = Array.isArray(currentQuestion.correct) 
-                    ? currentQuestion.correct 
-                    : [currentQuestion.correct];
+                  const correctAnswers = currentQuestion.correct_answers;
                   
                   let isSelected = false;
                   if (currentQuestion.type === 'multiple') {
@@ -512,43 +549,47 @@ export default function ExamPracticePage() {
                   <h3 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">Explanation:</h3>
                   <p className="text-blue-800 dark:text-blue-300 mb-4">{currentQuestion.explanation}</p>
                   
-                  <div className="text-sm">
-                    <div className="font-semibold text-green-800 dark:text-green-300 mb-2">
-                      Why this is correct:
-                    </div>
-                    <p className="text-green-700 dark:text-green-400 mb-4">{currentQuestion.reasoning.correct}</p>
-                    
-                    <div className="font-semibold text-red-800 dark:text-red-300 mb-2">
-                      Why other options are wrong:
-                    </div>
-                    {Object.entries(currentQuestion.reasoning.why_others_wrong).map(([key, reason]) => (
-                      <div key={key} className="text-red-700 dark:text-red-400 mb-2">
-                        <span className="font-medium">
-                          {String.fromCharCode(65 + parseInt(key))}.
-                        </span> {reason}
-                      </div>
-                    ))}
-                    
-                    {/* Reference Link */}
-                    {currentQuestion.reference && (
-                      <div className="mt-4 pt-4 border-t border-blue-200 dark:border-blue-700">
-                        <div className="font-semibold text-blue-900 dark:text-blue-300 mb-2">
-                          📚 Reference:
+                  {currentQuestion.reasoning && (
+                    <>
+                      <div className="text-sm">
+                        <div className="font-semibold text-green-800 dark:text-green-300 mb-2">
+                          Why this is correct:
                         </div>
-                        <a
-                          href={currentQuestion.reference.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline hover:no-underline transition-colors inline-flex items-center gap-1"
-                        >
-                          {currentQuestion.reference.title}
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                          </svg>
-                        </a>
+                        <p className="text-green-700 dark:text-green-400 mb-4">{currentQuestion.reasoning.correct}</p>
+                        
+                        <div className="font-semibold text-red-800 dark:text-red-300 mb-2">
+                          Why other options are wrong:
+                        </div>
+                        {Object.entries(currentQuestion.reasoning.why_others_wrong).map(([key, reason]) => (
+                          <div key={key} className="text-red-700 dark:text-red-400 mb-2">
+                            <span className="font-medium">
+                              {String.fromCharCode(65 + parseInt(key))}.
+                            </span> {reason}
+                          </div>
+                        ))}
                       </div>
-                    )}
-                  </div>
+                    </>
+                  )}
+                  
+                  {/* Reference Link */}
+                  {currentQuestion.reference && (
+                    <div className="mt-4 pt-4 border-t border-blue-200 dark:border-blue-700">
+                      <div className="font-semibold text-blue-900 dark:text-blue-300 mb-2">
+                        📚 Reference:
+                      </div>
+                      <a
+                        href={currentQuestion.reference.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline hover:no-underline transition-colors inline-flex items-center gap-1"
+                      >
+                        {currentQuestion.reference.title}
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -630,7 +671,8 @@ export default function ExamPracticePage() {
                     <button
                       key={index}
                       onClick={() => {
-                        setCurrentQuestionIndex(index);
+                        // Use the session hook to navigate to question
+                        sessionActions.navigateToQuestion(index);
                         setShowExplanation(false);
                       }}
                       className={dotClass}

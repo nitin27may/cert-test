@@ -10,16 +10,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseExamService } from '@/lib/services/supabaseService';
 import { supabase } from '@/lib/supabase';
 
-interface RouteParams {
-  params: {
-    examId: string;
-  };
-}
-
 // GET /api/exams/[examId] - Get exam details
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ examId: string }> }
+) {
   try {
-    const { examId } = params;
+    const { examId } = await params;
 
     if (!examId) {
       return NextResponse.json(
@@ -36,7 +33,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     });
 
   } catch (error: any) {
-    console.error(`GET /api/exams/${params.examId} error:`, error);
+    console.error(`GET /api/exams/${params} error:`, error);
     
     // Handle specific errors
     if (error.message === 'Exam not found') {
@@ -58,7 +55,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 }
 
 // DELETE /api/exams/[examId] - Deactivate exam (admin only)
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ examId: string }> }
+) {
   try {
     // Verify authentication
     const authHeader = request.headers.get('authorization');
@@ -79,7 +79,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const { examId } = params;
+    const { examId } = await params;
 
     if (!examId) {
       return NextResponse.json(
@@ -110,7 +110,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     });
 
   } catch (error: any) {
-    console.error(`DELETE /api/exams/${params.examId} error:`, error);
+    console.error(`DELETE /api/exams/${params} error:`, error);
     
     return NextResponse.json(
       {

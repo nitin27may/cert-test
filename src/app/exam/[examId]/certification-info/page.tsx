@@ -4,13 +4,13 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Header from '@/components/Header';
 import { examService } from '@/lib/api/examService';
-import { Exam, CertificationInfo } from '@/lib/types';
+import { ParsedCertificationInfo } from '@/lib/types';
 
 export default function CertificationInfoPage() {
   const params = useParams();
   const router = useRouter();
   const examId = params.examId as string;
-  const [certificationInfo, setCertificationInfo] = useState<CertificationInfo | null>(null);
+  const [certificationInfo, setCertificationInfo] = useState<ParsedCertificationInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,8 +20,8 @@ export default function CertificationInfoPage() {
         setIsLoading(true);
         const exam = await examService.getExamById(examId);
         
-        if (exam && exam.certificationInfo) {
-          setCertificationInfo(exam.certificationInfo);
+        if (exam && exam.certification_info) {
+          setCertificationInfo(exam.certification_info);
         } else {
           setError('Certification information not found for this exam');
         }
@@ -56,15 +56,15 @@ export default function CertificationInfoPage() {
             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-6 mb-6 max-w-2xl mx-auto">
               <h3 className="font-medium text-yellow-800 dark:text-yellow-200 mb-3">How to Add Certification Information</h3>
               <div className="text-sm text-yellow-700 dark:text-yellow-300 text-left space-y-2">
-                <p>To display certification information for this exam, you need to:</p>
+                <p>Certification information is stored in Supabase. To add or update:</p>
                 <ol className="list-decimal list-inside space-y-1 ml-4">
-                  <li>Open your <code className="bg-yellow-100 dark:bg-yellow-800 px-1 rounded">public/data/exams.json</code> file</li>
-                  <li>Find the exam with ID: <code className="bg-yellow-100 dark:bg-yellow-800 px-1 rounded">{examId}</code></li>
-                  <li>Add a <code className="bg-yellow-100 dark:bg-yellow-800 px-1 rounded">certificationInfo</code> object with the required fields</li>
-                  <li>Save the file and refresh this page</li>
+                  <li>Use the admin API to create/update certification info for exam ID <code className="bg-yellow-100 dark:bg-yellow-800 px-1 rounded">{examId}</code>.</li>
+                  <li>Or insert a row into the <code className="bg-yellow-100 dark:bg-yellow-800 px-1 rounded">certification_info</code> table via the Supabase SQL Editor.</li>
+                  <li>See setup steps in <code className="bg-yellow-100 dark:bg-yellow-800 px-1 rounded">SETUP-GUIDE.md</code> and data details in <code className="bg-yellow-100 dark:bg-yellow-800 px-1 rounded">MIGRATION.md</code>.</li>
+                  <li>Refresh this page after changes.</li>
                 </ol>
                 <p className="mt-3 text-xs">
-                  <strong>Note:</strong> I've provided comprehensive certification info objects for all major Azure exams in our previous conversation.
+                  <strong>Note:</strong> This app reads certification info from Supabase in real time; no local JSON edits are required.
                 </p>
               </div>
             </div>
@@ -107,7 +107,7 @@ export default function CertificationInfoPage() {
                   onClick={() => router.push(`/exam/${examId}/setup`)}
                   className="hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
                 >
-                  {certificationInfo.title || `${certificationInfo.examCode} Setup`}
+                  {certificationInfo.title || `${certificationInfo.exam_code} Setup`}
                 </button>
               </li>
               <li>
@@ -139,7 +139,7 @@ export default function CertificationInfoPage() {
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 px-3 py-1 rounded-full text-sm font-medium">
-                {certificationInfo.examCode}
+                {certificationInfo.exam_code}
               </span>
               <span className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 px-3 py-1 rounded-full text-sm font-medium">
                 {certificationInfo.level}
@@ -155,7 +155,7 @@ export default function CertificationInfoPage() {
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Exam Structure & Weightage</h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {certificationInfo.skillsMeasured.map((category, index) => (
+            {certificationInfo.skills_measured.map((category, index) => (
               <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-6">
                 <div className="flex justify-between items-start mb-4">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white pr-4">{category.category}</h3>
@@ -191,7 +191,7 @@ export default function CertificationInfoPage() {
             <div className="space-y-3">
               <div className="flex justify-between">
                 <span className="font-medium text-gray-700 dark:text-gray-300">Exam Code:</span>
-                <span className="text-gray-900 dark:text-white">{certificationInfo.examCode}</span>
+                <span className="text-gray-900 dark:text-white">{certificationInfo.exam_code}</span>
               </div>
               <div className="flex justify-between">
                 <span className="font-medium text-gray-700 dark:text-gray-300">Level:</span>
@@ -203,19 +203,19 @@ export default function CertificationInfoPage() {
               </div>
               <div className="flex justify-between">
                 <span className="font-medium text-gray-700 dark:text-gray-300">Duration:</span>
-                <span className="text-gray-900 dark:text-white">{certificationInfo.examDetails.duration}</span>
+                <span className="text-gray-900 dark:text-white">{certificationInfo.exam_details.duration}</span>
               </div>
               <div className="flex justify-between">
                 <span className="font-medium text-gray-700 dark:text-gray-300">Questions:</span>
-                <span className="text-gray-900 dark:text-white">{certificationInfo.examDetails.questions}</span>
+                <span className="text-gray-900 dark:text-white">{certificationInfo.exam_details.questions}</span>
               </div>
               <div className="flex justify-between">
                 <span className="font-medium text-gray-700 dark:text-gray-300">Passing Score:</span>
-                <span className="text-gray-900 dark:text-white">{certificationInfo.examDetails.passingScore}</span>
+                <span className="text-gray-900 dark:text-white">{certificationInfo.exam_details.passing_score}</span>
               </div>
               <div className="flex justify-between">
                 <span className="font-medium text-gray-700 dark:text-gray-300">Cost:</span>
-                <span className="text-gray-900 dark:text-white">{certificationInfo.examDetails.cost}</span>
+                <span className="text-gray-900 dark:text-white">{certificationInfo.exam_details.cost}</span>
               </div>
             </div>
           </div>
@@ -237,7 +237,7 @@ export default function CertificationInfoPage() {
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Study Resources</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {certificationInfo.studyResources.map((resource, index) => (
+            {certificationInfo.study_resources.map((resource, index) => (
               <a
                 key={index}
                 href={resource.url}
@@ -262,13 +262,13 @@ export default function CertificationInfoPage() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Career Path</h2>
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-6 rounded-lg border border-blue-200 dark:border-blue-700">
             <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-8">
-              {certificationInfo.careerPath.map((role, index) => (
+              {certificationInfo.career_path.map((role, index) => (
                 <div key={index} className="flex items-center">
                   <div className="bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center text-sm font-medium">
                     {index + 1}
                   </div>
                   <span className="ml-3 text-lg font-medium text-gray-700 dark:text-gray-300">{role}</span>
-                  {index < certificationInfo.careerPath.length - 1 && (
+                  {index < certificationInfo.career_path.length - 1 && (
                     <svg className="w-6 h-6 text-gray-400 mx-4 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
                     </svg>
@@ -288,12 +288,12 @@ export default function CertificationInfoPage() {
             Back to {certificationInfo.title || 'Exam Setup'}
           </button>
           <a
-            href={certificationInfo.studyResources[0]?.url}
+            href={certificationInfo.study_resources[0]?.url}
             target="_blank"
             rel="noopener noreferrer"
             className="bg-green-500 hover:bg-green-600 text-white px-8 py-3 rounded-lg font-medium transition-colors text-lg text-center"
           >
-            Start Learning {certificationInfo.examCode}
+            Start Learning {certificationInfo.exam_code}
           </a>
         </div>
       </div>

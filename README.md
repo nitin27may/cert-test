@@ -1,45 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Azure Certification Practice Exams — Supabase-Powered
 
-## Getting Started
+This project is a production-ready practice exam platform for Azure certifications backed by Supabase (database, auth, realtime) and Next.js. All content, sessions, answers, and results are stored and synced via Supabase APIs. No local JSON is used at runtime.
 
-First, run the development server:
+## Quick Start
 
+1) Install dependencies
+```bash
+npm install
+```
+
+2) Configure environment
+Create `.env.local` in the project root:
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
+
+3) Run the app
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Open http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Database Setup (Supabase)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Run these in the Supabase SQL Editor:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
-
-
-
+- Schema/tables: `scripts/supabase-schema.sql`
+- RLS policies: `scripts/rls-policies.sql` (if separated)
+- Realtime publication:
+```sql
+ALTER PUBLICATION supabase_realtime ADD TABLE user_exam_sessions;
+ALTER PUBLICATION supabase_realtime ADD TABLE user_answers;
+ALTER PUBLICATION supabase_realtime ADD TABLE session_questions;
+ALTER PUBLICATION supabase_realtime ADD TABLE exam_results;
 ```
-please use the attached files and update #file:exams.json  with additionlal questions, please add atleast 200 questions in each exam, also please make sure that in az-104 and az-305 there are at least 50% networking related quyestions.
+- If your data contains extra enum values (e.g., `case-study`): `scripts/update-question-type-enum.sql`
 
-Please refer the #file:types.ts  to add all properties in each questions.
-```\
+For full database and migration guidance, see `MIGRATION.md`.
+
+## Data Migration
+
+Import existing JSON content into Supabase:
+```bash
+npm run migrate:exam-data
+```
+Requires `.env.local` with project URL and service role key. See `MIGRATION.md` for troubleshooting enum/RLS issues and how to feed or update exam content.
+
+## Key Features
+
+- Supabase-backed content (no local JSON at runtime)
+- Realtime sync for sessions and answers
+- Session resume, auto-save, and analytics
+- RLS-secured user data
+
+## App Structure
+
+- UI pages: `/exams`, `/exam/[examId]/setup`, `/exam/[examId]/practice`, `/dashboard`
+- APIs: `src/app/api/*` (exams, sessions, answers, results)
+- Services: `src/lib/services/*` (Supabase + realtime)
+- Hooks: `src/hooks/*` (`useOptimizedExamSession`, `useExamResults`, `useExamData`)
+
+## Troubleshooting (Quick)
+
+- Missing env vars during migration → ensure `.env.local` has URL and service role key
+- RLS errors during migration → use service role key or see `MIGRATION.md`
+- Enum errors (e.g., `case-study`) → run `scripts/update-question-type-enum.sql`
+
+## Contributing
+
+1) Create a feature branch
+2) Make atomic commits
+3) Ensure types and lint pass
+4) Open a PR
+
+## Deployment
+
+See `DEPLOYMENT.md` for deployment instructions.
+
+
+

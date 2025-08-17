@@ -62,28 +62,13 @@ CREATE POLICY "Content managers can manage exams" ON exams
   FOR ALL 
   USING (is_content_manager(auth.uid()));
 
-CREATE POLICY "Service role can manage exams" ON exams
-  FOR ALL 
-  USING (auth.role() = 'service_role');
 
--- TOPICS table policies
-CREATE POLICY "Public read access for topics" ON topics
-  FOR SELECT 
-  USING (
-    EXISTS (
-      SELECT 1 FROM exams 
-      WHERE exams.id = topics.exam_id 
-      AND exams.is_active = true
-    )
-  );
+
 
 CREATE POLICY "Content managers can manage topics" ON topics
   FOR ALL 
   USING (is_content_manager(auth.uid()));
 
-CREATE POLICY "Service role can manage topics" ON topics
-  FOR ALL 
-  USING (auth.role() = 'service_role');
 
 -- TOPIC_MODULES table policies
 CREATE POLICY "Public read access for topic modules" ON topic_modules
@@ -121,9 +106,6 @@ CREATE POLICY "Content managers can manage questions" ON questions
   FOR ALL 
   USING (is_content_manager(auth.uid()));
 
-CREATE POLICY "Service role can manage questions" ON questions
-  FOR ALL 
-  USING (auth.role() = 'service_role');
 
 -- CERTIFICATION_INFO table policies
 CREATE POLICY "Public read access for certification info" ON certification_info
@@ -246,10 +228,7 @@ CREATE POLICY "Service role can manage user answers" ON user_answers
   FOR ALL 
   USING (auth.role() = 'service_role');
 
--- EXAM_RESULTS table policies
-CREATE POLICY "Users can view their own exam results" ON exam_results
-  FOR SELECT 
-  USING (auth.uid() = user_id);
+
 
 -- Only system can create exam results (when completing sessions)
 CREATE POLICY "System can create exam results" ON exam_results

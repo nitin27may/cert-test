@@ -1,17 +1,17 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { Exam, ExamSession, Question, ExamState } from '@/lib/types';
-import { getAvailableExams, getExamById, filterQuestionsByTopics } from '@/lib/data';
-import { shuffleArray, validateAnswer, storage, getStorageKeys } from '@/lib/utils';
+import { supabaseExamService } from '@/lib/services/supabaseService';
+import { shuffleArray, validateAnswer } from '@/lib/utils';
 
 // Async thunks
 export const loadExam = createAsyncThunk(
   'exam/loadExam',
   async (examId: string) => {
-    const exam = await getExamById(examId);
-    if (!exam) {
+    const response = await supabaseExamService.getExamById(examId);
+    if (!response.exam) {
       throw new Error(`Exam with ID ${examId} not found`);
     }
-    return exam;
+    return response.exam;
   }
 );
 
@@ -21,79 +21,46 @@ export const startExamSession = createAsyncThunk(
     examId,
     selectedTopics,
     questionLimit,
+    userId,
   }: {
     examId: string;
     selectedTopics: string[];
     questionLimit?: number;
+    userId: string;
   }) => {
-    const exam = await getExamById(examId);
-    if (!exam) {
-      throw new Error(`Exam with ID ${examId} not found`);
-    }
+    // Create a new session in the database
+    const sessionResponse = await supabaseExamService.createSession(userId, {
+      exam_id: examId,
+      selected_topics: selectedTopics,
+      question_limit: questionLimit || 20,
+      session_name: `Practice Session - ${new Date().toLocaleDateString()}`
+    });
 
-    // Filter questions by selected topics
-    let questions = filterQuestionsByTopics(exam.questions, selectedTopics);
-    
-    // Shuffle questions
-    questions = shuffleArray(questions);
-    
-    // Limit questions if specified
-    if (questionLimit && questionLimit < questions.length) {
-      questions = questions.slice(0, questionLimit);
-    }
-
-    const session: ExamSession = {
-      examId,
-      selectedTopics,
-      questionLimit,
-      currentQuestionIndex: 0,
-      userAnswers: {},
-      checkedQuestions: [],
-      answeredQuestions: [],
-      correctAnswers: 0,
-      startTime: new Date().toISOString(),
-      lastActivity: new Date().toISOString(),
-      examQuestions: questions,
+    return { 
+      exam: { id: examId }, // Minimal exam info since we're using the session
+      session: sessionResponse.session 
     };
-
-    // Save to localStorage
-    const storageKeys = getStorageKeys(examId);
-    storage.set(storageKeys.examSession, session);
-    
-    // Add to active exams
-    const activeExams: Record<string, any> = storage.get(storageKeys.activeExams, {});
-    activeExams[examId] = {
-      examId,
-      title: exam.title,
-      progress: 0,
-      lastActivity: session.lastActivity,
-    };
-    storage.set(storageKeys.activeExams, activeExams);
-
-    return { exam, session };
   }
 );
 
 export const resumeExamSession = createAsyncThunk(
   'exam/resumeExamSession',
-  async (examId: string) => {
-    const exam = await getExamById(examId);
-    if (!exam) {
-      throw new Error(`Exam with ID ${examId} not found`);
-    }
-
-    const storageKeys = getStorageKeys(examId);
-    const session = storage.get<ExamSession | null>(storageKeys.examSession, null);
+  async ({ examId, userId }: { examId: string; userId: string }) => {
+    // Get user sessions and find the one for this exam
+    const { sessions } = await supabaseExamService.getUserSessions(userId);
+    const session = sessions.find(s => s.exam_id === examId && s.status === 'in_progress');
     
     if (!session) {
       throw new Error(`No active session found for exam ${examId}`);
     }
 
-    // Update last activity
-    session.lastActivity = new Date().toISOString();
-    storage.set(storageKeys.examSession, session);
-
-    return { exam, session };
+    // Load the full session data
+    const sessionResponse = await supabaseExamService.getSession(session.id, userId);
+    
+    return { 
+      exam: { id: examId },
+      session: sessionResponse.session 
+    };
   }
 );
 
@@ -124,11 +91,8 @@ const examSlice = createSlice({
       // Update last activity
       state.examSession.lastActivity = new Date().toISOString();
       
-      // Save to localStorage
-      if (state.currentExam) {
-        const storageKeys = getStorageKeys(state.currentExam.id);
-        storage.set(storageKeys.examSession, state.examSession);
-      }
+      // Note: Session updates are now handled by the useOptimizedExamSession hook
+      // which syncs with the database automatically
     },
 
     checkAnswer: (state, action: PayloadAction<number>) => {
@@ -144,8 +108,9 @@ const examSlice = createSlice({
       if (!state.examSession.checkedQuestions.includes(questionId)) {
         state.examSession.checkedQuestions.push(questionId);
         
-        // Check if answer is correct
-        const isCorrect = validateAnswer(userAnswer, question.correct, question.type);
+        // Check if answer is correct - use correct_answers for new format
+        const correctAnswers = question.correct_answers || question.correct;
+        const isCorrect = validateAnswer(userAnswer, correctAnswers, question.type);
         if (isCorrect) {
           state.examSession.correctAnswers++;
         }
@@ -154,9 +119,8 @@ const examSlice = createSlice({
       // Update last activity
       state.examSession.lastActivity = new Date().toISOString();
       
-      // Save to localStorage
-      const storageKeys = getStorageKeys(state.currentExam.id);
-      storage.set(storageKeys.examSession, state.examSession);
+      // Note: Session updates are now handled by the useOptimizedExamSession hook
+      // which syncs with the database automatically
     },
 
     navigateToQuestion: (state, action: PayloadAction<number>) => {
@@ -167,11 +131,8 @@ const examSlice = createSlice({
         state.examSession.currentQuestionIndex = index;
         state.examSession.lastActivity = new Date().toISOString();
         
-        // Save to localStorage
-        if (state.currentExam) {
-          const storageKeys = getStorageKeys(state.currentExam.id);
-          storage.set(storageKeys.examSession, state.examSession);
-        }
+        // Note: Session updates are now handled by the useOptimizedExamSession hook
+        // which syncs with the database automatically
       }
     },
 
@@ -183,11 +144,8 @@ const examSlice = createSlice({
         state.examSession.currentQuestionIndex = nextIndex;
         state.examSession.lastActivity = new Date().toISOString();
         
-        // Save to localStorage
-        if (state.currentExam) {
-          const storageKeys = getStorageKeys(state.currentExam.id);
-          storage.set(storageKeys.examSession, state.examSession);
-        }
+        // Note: Session updates are now handled by the useOptimizedExamSession hook
+        // which syncs with the database automatically
       }
     },
 
@@ -199,27 +157,13 @@ const examSlice = createSlice({
         state.examSession.currentQuestionIndex = prevIndex;
         state.examSession.lastActivity = new Date().toISOString();
         
-        // Save to localStorage
-        if (state.currentExam) {
-          const storageKeys = getStorageKeys(state.currentExam.id);
-          storage.set(storageKeys.examSession, state.examSession);
-        }
+        // Note: Session updates are now handled by the useOptimizedExamSession hook
+        // which syncs with the database automatically
       }
     },
 
     resetExamSession: (state) => {
-      if (!state.currentExam) return;
-      
-      // Clear localStorage
-      const storageKeys = getStorageKeys(state.currentExam.id);
-      storage.remove(storageKeys.examSession);
-      
-      // Remove from active exams
-      const activeExams: Record<string, any> = storage.get(storageKeys.activeExams, {});
-      delete activeExams[state.currentExam.id];
-      storage.set(storageKeys.activeExams, activeExams);
-      
-      // Reset state
+      // Reset state - database cleanup is handled by the useOptimizedExamSession hook
       state.examSession = null;
     },
 

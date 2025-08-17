@@ -1,11 +1,12 @@
-import { Exam, Question } from '../types';
+import { Exam, Question, ParsedExam, ParsedQuestion, ExamListResponse, ExamDetailResponse, ExamQuestionsResponse } from '../types';
+import { supabaseExamService } from '../services/supabaseService';
 
 export interface ExamResponse {
   exams: Record<string, Exam>;
 }
 
 class ExamService {
-  private cache: Map<string, Exam> = new Map();
+  private cache: Map<string, ParsedExam> = new Map();
   private allExamsCache: ExamResponse | null = null;
 
   async getAllExams(): Promise<ExamResponse> {
@@ -14,18 +15,33 @@ class ExamService {
     }
 
     try {
-      const response = await fetch('/data/exams.json');
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      // Use Supabase API instead of JSON file
+      const response: ExamListResponse = await supabaseExamService.getExams();
+      
+      // Convert to legacy format for compatibility
+      const examRecord: Record<string, Exam> = {};
+      for (const exam of response.exams) {
+        // Get full exam details including topics and questions
+        const fullExam = await this.getExamById(exam.id);
+        if (fullExam) {
+          // Convert ParsedExam to legacy Exam format
+          examRecord[exam.id] = {
+            id: fullExam.id,
+            title: fullExam.title,
+            description: fullExam.description,
+            totalQuestions: fullExam.totalQuestions,
+            networkingFocusPercentage: fullExam.networkingFocusPercentage,
+            certification_guide_url: fullExam.certification_guide_url,
+            study_guide_url: fullExam.study_guide_url,
+            topics: fullExam.topics,
+            questions: fullExam.questions,
+            certificationInfo: fullExam.certificationInfo
+          };
+        }
       }
       
-      const data: ExamResponse = await response.json();
+      const data: ExamResponse = { exams: examRecord };
       this.allExamsCache = data;
-      
-      // Cache individual exams
-      Object.values(data.exams).forEach(exam => {
-        this.cache.set(exam.id, exam);
-      });
       
       return data;
     } catch (error) {
@@ -34,98 +50,53 @@ class ExamService {
     }
   }
 
-  async getExamById(examId: string): Promise<Exam | null> {
+  async getExamById(examId: string): Promise<ParsedExam | null> {
     // Check cache first
     if (this.cache.has(examId)) {
       return this.cache.get(examId)!;
     }
 
     try {
-      const allExams = await this.getAllExams();
-      return allExams.exams[examId] || null;
+      // Use Supabase API
+      const response: ExamDetailResponse = await supabaseExamService.getExamById(examId);
+      const exam = response.exam;
+      
+      // Cache the result
+      this.cache.set(examId, exam);
+      
+      return exam;
     } catch (error) {
       console.error(`Failed to fetch exam ${examId}:`, error);
       return null;
     }
   }
 
-  async getExamQuestions(examId: string, count?: number, selectedTopics?: string[]): Promise<Question[]> {
-    const exam = await this.getExamById(examId);
-    if (!exam) {
-      throw new Error(`Exam ${examId} not found`);
-    }
-
-    let questions = exam.questions;
-    
-    // Apply topic filtering if provided
-    if (selectedTopics && selectedTopics.length > 0) {
-      // Create a mapping from topic ID to topic name for filtering
-      const topicIdToNameMap = new Map<string, string>();
-      exam.topics.forEach(topic => {
-        topicIdToNameMap.set(topic.id, topic.name);
+  async getExamQuestions(examId: string, count?: number, selectedTopics?: string[]): Promise<ParsedQuestion[]> {
+    try {
+      // Use Supabase API directly for better performance
+      const response: ExamQuestionsResponse = await supabaseExamService.getExamQuestions(examId, {
+        limit: count,
+        topics: selectedTopics,
+        shuffle: true
       });
       
-      const beforeFilter = questions.length;
-      
-      // Filter questions by matching topic ID to question topic
-      questions = questions.filter(q => {
-        // Check if any selected topic ID maps to this question's topic
-        const matches = selectedTopics.some(topicId => {
-          const topicName = topicIdToNameMap.get(topicId);
-          
-          // Try multiple matching strategies
-          if (topicName) {
-            // Strategy 1: Check if question topic contains the topic name
-            if (q.topic.toLowerCase().includes(topicName.toLowerCase())) {
-              return true;
-            }
-            
-            // Strategy 2: Check if topic name contains the question topic
-            if (topicName.toLowerCase().includes(q.topic.toLowerCase())) {
-              return true;
-            }
-            
-            // Strategy 3: Check for common keywords
-            const commonKeywords = ['networking', 'storage', 'identity', 'security', 'monitoring', 'governance'];
-            if (commonKeywords.some(keyword => 
-              q.topic.toLowerCase().includes(keyword) && topicName.toLowerCase().includes(keyword)
-            )) {
-              return true;
-            }
-          }
-          
-          // Strategy 4: Direct topic ID to topic property match (fallback)
-          if (q.topic === topicId) {
-            return true;
-          }
-          
-          return false;
-        });
-        
-        return matches;
-      });
-      
-      const afterFilter = questions.length;
+      return response.questions;
+    } catch (error) {
+      console.error(`Failed to fetch questions for exam ${examId}:`, error);
+      return [];
     }
-    
-    // Shuffle questions for variety
-    questions = this.shuffleArray([...questions]);
-    
-    // Return specified count or all questions
-    const finalQuestions = count ? questions.slice(0, count) : questions;
-    
-    return finalQuestions;
   }
 
   async getAvailableExams(): Promise<Array<{ id: string; title: string; description: string; totalQuestions: number; networkingFocusPercentage?: number }>> {
     try {
-      const allExams = await this.getAllExams();
-      return Object.values(allExams.exams).map(exam => ({
+      // Use Supabase API directly
+      const response: ExamListResponse = await supabaseExamService.getExams();
+      return response.exams.map(exam => ({
         id: exam.id,
         title: exam.title,
-        description: exam.description,
-        totalQuestions: exam.totalQuestions,
-        networkingFocusPercentage: exam.networkingFocusPercentage
+        description: exam.description || '',
+        totalQuestions: exam.total_questions,
+        networkingFocusPercentage: exam.networking_focus_percentage
       }));
     } catch (error) {
       console.error('Failed to fetch available exams:', error);

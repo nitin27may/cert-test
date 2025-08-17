@@ -5,39 +5,24 @@ import { useEffect, useState } from 'react';
 import Header from '@/components/Header';
 import { useExamData } from '@/hooks/useExamData';
 import { examService } from '@/lib/api/examService';
+import { supabaseExamService } from '@/lib/services/supabaseService';
 import { CertificationInfo } from '@/lib/types';
+import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
-
-// Helper function to update exam progress in localStorage
-const updateExamProgress = (examId: string, progressData: any) => {
-  try {
-    const key = `examProgress_${examId}`;
-    const existingData = localStorage.getItem(key);
-    const currentData = existingData ? JSON.parse(existingData) : {};
-    
-    const updatedData = {
-      ...currentData,
-      ...progressData,
-      updatedAt: new Date().toISOString()
-    };
-    
-    localStorage.setItem(key, JSON.stringify(updatedData));
-  } catch (error) {
-    console.error('Error updating exam progress:', error);
-  }
-};
 
 export default function ExamSetupPage() {
   const params = useParams();
   const router = useRouter();
   const examId = params.examId as string;
+  const { user } = useAuth();
   
   const { exam, loading: isLoading, error } = useExamData(examId);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [questionCount, setQuestionCount] = useState(50);
-  const [timeLimit, setTimeLimit] = useState(90);
+  const [timeLimit, setState] = useState(90);
   const [difficulty, setDifficulty] = useState<string>('mix');
   const [certificationInfo, setCertificationInfo] = useState<CertificationInfo | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
 
   useEffect(() => {
     if (exam) {
@@ -72,36 +57,38 @@ export default function ExamSetupPage() {
     );
   };
 
-  const handleStartExam = () => {
+  const handleStartExam = async () => {
     if (selectedTopics.length === 0) {
       alert('Please select at least one topic');
       return;
     }
 
-    // Store configuration in sessionStorage for the practice page
-    const config = {
-      selectedTopics,
-      questionCount,
-      timeLimit,
-      difficulty
-    };
-    
-    sessionStorage.setItem(`exam-config-${examId}`, JSON.stringify(config));
-    
-    // Initialize exam progress in localStorage
-    const initialProgress = {
-      currentQuestionIndex: 0,
-      userAnswers: {},
-      checkedAnswers: {},
-      startedAt: Date.now(),
-      examId: examId,
-      examTitle: certificationInfo?.title || exam?.title || ''
-    };
-    
-    localStorage.setItem(`exam-progress-${examId}`, JSON.stringify(initialProgress));
-    
-    // Navigate to practice page
-    router.push(`/exam/${examId}/practice`);
+    if (!user?.id) {
+      alert('Please log in to start an exam');
+      return;
+    }
+
+    setIsStarting(true);
+
+    try {
+      // Create a new session in the database
+      const sessionResponse = await supabaseExamService.createSession(user.id, {
+        exam_id: examId,
+        selected_topics: selectedTopics,
+        question_limit: questionCount,
+        session_name: `Practice Session - ${new Date().toLocaleDateString()}`
+      });
+
+      console.log('Session created successfully:', sessionResponse.session.id);
+      
+      // Navigate directly to practice page - it will load the session from the database
+      router.push(`/exam/${examId}/practice`);
+      
+    } catch (error) {
+      console.error('Failed to create session:', error);
+      alert('Failed to start exam. Please try again.');
+      setIsStarting(false);
+    }
   };
 
   if (isLoading) {
@@ -201,7 +188,7 @@ export default function ExamSetupPage() {
                     </span>
                   ) : (
                     <span className="block mt-1 text-yellow-600 dark:text-yellow-400">
-                      <strong>Note:</strong> Certification details will be displayed once you add the certificationInfo object to your exams.json file. This will also improve the exam title and description display.
+                      <strong>Note:</strong> Certification details are pulled from Supabase. Add them via the admin API or directly in the <code className="bg-yellow-100 dark:bg-yellow-800 px-1 rounded">certification_info</code> table. See <code className="bg-yellow-100 dark:bg-yellow-800 px-1 rounded">SETUP-GUIDE.md</code>.
                     </span>
                   )}
                 </p>
@@ -282,7 +269,7 @@ export default function ExamSetupPage() {
                   {!certificationInfo && (
                     <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
                       <p className="text-xs text-yellow-700 dark:text-yellow-300">
-                        <strong>Note:</strong> Weightage percentages will be more accurate once you add certificationInfo to your exams.json file.
+                        <strong>Note:</strong> Weightage percentages improve when certification info exists in Supabase. Add via admin API or SQL (see SETUP-GUIDE.md).
                       </p>
                     </div>
                   )}
@@ -321,7 +308,7 @@ export default function ExamSetupPage() {
                   </label>
                   <select
                     value={timeLimit}
-                    onChange={(e) => setTimeLimit(Number(e.target.value))}
+                    onChange={(e) => setState(Number(e.target.value))}
                     className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-400 dark:focus:border-blue-400 transition-colors"
                   >
                     <option value={15}>15 minutes</option>
@@ -370,10 +357,10 @@ export default function ExamSetupPage() {
           <div className="mt-8 flex justify-center">
             <button
               onClick={handleStartExam}
-              disabled={selectedTopics.length === 0}
+              disabled={selectedTopics.length === 0 || isStarting}
               className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-8 py-3 rounded-lg text-lg font-medium transition-colors"
             >
-              Start {certificationInfo?.examCode || 'Practice'} Exam
+              {isStarting ? 'Starting Exam...' : `Start ${certificationInfo?.examCode || 'Practice'} Exam`}
             </button>
           </div>
         </div>

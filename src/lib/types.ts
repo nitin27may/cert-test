@@ -80,7 +80,7 @@ export interface ExamData {
 
 // Enums matching database types
 export type ExamDifficulty = 'easy' | 'medium' | 'difficult';
-export type QuestionType = 'single' | 'multiple';
+export type QuestionType = 'single' | 'multiple' | 'case-study';
 export type SessionStatus = 'in_progress' | 'completed' | 'paused' | 'abandoned';
 
 // Database table interfaces

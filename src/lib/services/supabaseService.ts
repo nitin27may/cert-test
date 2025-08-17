@@ -137,10 +137,10 @@ export class SupabaseExamService {
       const modulesToInsert = [];
       for (const topic of examData.topics) {
         const topicId = `${examData.id}-${topic.id}`;
-        for (const module of topic.modules) {
+        for (const moduleItem of topic.modules) {
           modulesToInsert.push({
             topic_id: topicId,
-            module_name: module
+            module_name: moduleItem
           });
         }
       }
@@ -158,7 +158,7 @@ export class SupabaseExamService {
         id: question.id,
         exam_id: examData.id,
         topic_id: question.topic_id,
-        module: question.module,
+        module_name: question.module,
         category: question.category,
         type: question.type,
         difficulty: question.difficulty,
@@ -230,7 +230,7 @@ export class SupabaseExamService {
           id: question.id,
           exam_id: examId,
           topic_id: question.topic_id,
-          module: question.module,
+          module_name: question.module,
           category: question.category,
           type: question.type,
           difficulty: question.difficulty,
@@ -438,11 +438,14 @@ export class SupabaseExamService {
         id,
         exam_id,
         status,
+        session_name,
+        current_question_index,
         last_activity,
         total_questions,
         questions_answered,
         correct_answers,
         score,
+        time_spent_seconds,
         exams:exams(title)
       `)
       .eq('user_id', userId)
@@ -457,11 +460,14 @@ export class SupabaseExamService {
       exam_id: session.exam_id,
       exam_title: session.exams?.title || 'Unknown Exam',
       status: session.status as SessionStatus,
+      session_name: session.session_name,
+      current_question_index: session.current_question_index || 0,
       progress: session.total_questions > 0 ? (session.questions_answered / session.total_questions) * 100 : 0,
       score: session.score,
       last_activity: session.last_activity,
       total_questions: session.total_questions,
-      questions_answered: session.questions_answered
+      questions_answered: session.questions_answered,
+      time_spent_seconds: session.time_spent_seconds || 0
     }));
 
     return { sessions };
@@ -479,6 +485,38 @@ export class SupabaseExamService {
 
     if (error) {
       throw new Error(`Failed to update session: ${error.message}`);
+    }
+  }
+
+  async deleteSession(sessionId: string): Promise<void> {
+    // First delete related user answers
+    const { error: answersError } = await supabase
+      .from('user_answers')
+      .delete()
+      .eq('session_id', sessionId);
+
+    if (answersError) {
+      throw new Error(`Failed to delete session answers: ${answersError.message}`);
+    }
+
+    // Then delete session questions
+    const { error: questionsError } = await supabase
+      .from('session_questions')
+      .delete()
+      .eq('session_id', sessionId);
+
+    if (questionsError) {
+      throw new Error(`Failed to delete session questions: ${questionsError.message}`);
+    }
+
+    // Finally delete the session
+    const { error: sessionError } = await supabase
+      .from('user_exam_sessions')
+      .delete()
+      .eq('id', sessionId);
+
+    if (sessionError) {
+      throw new Error(`Failed to delete session: ${sessionError.message}`);
     }
   }
 

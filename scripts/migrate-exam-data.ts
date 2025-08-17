@@ -8,6 +8,10 @@
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
+import * as dotenv from 'dotenv';
+
+// Load environment variables from .env.local
+dotenv.config({ path: '.env.local' });
 
 // Types for the JSON structure
 interface JsonExamTopic {
@@ -88,7 +92,13 @@ class ExamDataMigrator {
   private jsonData: JsonExamData;
 
   constructor(supabaseUrl: string, supabaseKey: string, jsonFilePath: string) {
-    this.supabase = createClient(supabaseUrl, supabaseKey);
+    // Use service role to bypass RLS during migration
+    this.supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
     
     // Load JSON data
     const jsonContent = fs.readFileSync(jsonFilePath, 'utf-8');
@@ -232,6 +242,7 @@ class ExamDataMigrator {
     
     const batchSize = 1000; // Process questions in batches
     let totalMigrated = 0;
+    let globalQuestionId = 1; // Global counter to ensure unique IDs
     
     for (const exam of Object.values(this.jsonData.exams)) {
       console.log(`  Processing ${exam.questions.length} questions for exam: ${exam.title}`);
@@ -255,7 +266,7 @@ class ExamDataMigrator {
         }
 
         return {
-          id: question.id,
+          id: globalQuestionId++, // Use incremental ID to ensure uniqueness
           exam_id: exam.id,
           topic_id: topicId,
           module: question.module,
@@ -353,10 +364,26 @@ class ExamDataMigrator {
 async function main() {
   // Get environment variables
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   
   if (!supabaseUrl || !supabaseKey) {
-    throw new Error('Missing required environment variables: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
+    const missing = [];
+    if (!supabaseUrl) missing.push('NEXT_PUBLIC_SUPABASE_URL');
+    if (!supabaseKey) missing.push('SUPABASE_SERVICE_ROLE_KEY');
+    
+    console.error('Missing required environment variables:', missing.join(', '));
+    console.error('\nPlease ensure your .env.local file contains:');
+    console.error('NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co');
+    console.error('SUPABASE_SERVICE_ROLE_KEY=your-service-role-key');
+    console.error('\nYou can find these values in your Supabase project settings.');
+    console.error('\nNote: The migration script requires the service role key to bypass RLS policies.');
+    
+    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  }
+  
+  // Verify we're using service role key
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn('⚠️  Warning: Using anon key instead of service role key. This may cause RLS policy errors.');
   }
 
   // Path to the JSON file

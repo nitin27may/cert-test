@@ -510,7 +510,37 @@ export class RealtimeService {
    * Get connection status
    */
   getConnectionStatus(): 'CONNECTING' | 'OPEN' | 'CLOSING' | 'CLOSED' {
-    return supabase.realtime.getStatus() as any;
+    // Use SDK capability if present (future/back-compat)
+    const rt: any = (supabase as any).realtime;
+    if (rt && typeof rt.getStatus === 'function') {
+      return rt.getStatus();
+    }
+
+    // Derive status from channels as a fallback
+    try {
+      // Offline check
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        return 'CLOSED';
+      }
+
+      const channels = supabase.getChannels?.() || [];
+      if (!channels.length) return 'CLOSED';
+
+      const states = channels
+        .map((c: any) => c?.state || c?.status || c?.connectionState)
+        .filter(Boolean)
+        .map((s: any) => String(s).toUpperCase());
+
+      if (states.some(s => s.includes('CLOSING'))) return 'CLOSING';
+      if (states.some(s => s.includes('SUBSCRIBED') || s.includes('JOINED'))) return 'OPEN';
+      if (states.some(s => s.includes('SUBSCRIBING') || s.includes('JOINING') || s.includes('CONNECT'))) return 'CONNECTING';
+
+      // Default when channels exist but state unknown
+      return 'OPEN';
+    } catch {
+      // Conservative default
+      return 'OPEN';
+    }
   }
 
   /**
