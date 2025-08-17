@@ -125,10 +125,28 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
       clearInterval(timeTrackingTimerRef.current);
     }
 
+    console.log('Starting time tracking with initial time spent:', state.timeSpent);
+
+    // Update database to indicate time tracking is active
+    if (state.session) {
+      supabaseExamService.updateSession(state.session.id, state.session.user_id, {
+        time_tracking_started_at: new Date().toISOString(),
+        is_time_tracking_active: true
+      } as any).catch(console.error);
+    }
+
+    // Store the start time for accurate tracking
+    const trackingStartTime = Date.now();
+    const initialTimeSpent = state.timeSpent;
+
+    console.log('Time tracking initialized - Start time:', trackingStartTime, 'Initial time spent:', initialTimeSpent);
+
     timeTrackingTimerRef.current = setInterval(() => {
+      const currentTimeSpent = initialTimeSpent + Math.floor((Date.now() - trackingStartTime) / 1000);
+      
       updateState(prev => ({
         ...prev,
-        timeSpent: prev.timeSpent + 1,
+        timeSpent: currentTimeSpent,
         lastSyncTime: new Date()
       }));
 
@@ -139,12 +157,20 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
         // Trigger background sync for time tracking
         if (state.session) {
           supabaseExamService.updateSession(state.session.id, state.session.user_id, {
-            time_spent_seconds: state.timeSpent + 1
+            time_spent_seconds: currentTimeSpent
           }).catch(console.error); // Don't block UI for time updates
         }
       }
     }, 1000);
   }, [updateState, state.session, state.timeSpent]);
+
+  // Stop time tracking
+  const stopTimeTracking = useCallback(() => {
+    if (timeTrackingTimerRef.current) {
+      clearInterval(timeTrackingTimerRef.current);
+      timeTrackingTimerRef.current = null;
+    }
+  }, []);
 
   // Setup real-time sync with better error handling
   const setupRealtimeSync = useCallback(async (sessionId: string, userId: string) => {
@@ -225,13 +251,16 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
 
   // Cleanup real-time subscriptions
   const cleanupRealtimeSync = useCallback(async () => {
+    // Stop time tracking
+    stopTimeTracking();
+    
     if (autoSyncManagerRef.current) {
       await autoSyncManagerRef.current.forceSync();
       autoSyncManagerRef.current.destroy();
       autoSyncManagerRef.current = null;
     }
     await realtimeService.unsubscribeAll();
-  }, []);
+  }, [stopTimeTracking]);
 
   // Create session with optimized dependencies
   const createSession = useCallback(async (userId: string, sessionData: CreateSessionRequest) => {
@@ -324,6 +353,9 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
       // Resume time tracking if session is in progress
       if (response.session.status === 'in_progress') {
         startTimeTracking();
+      } else if (response.session.status === 'paused') {
+        // Don't start time tracking for paused sessions
+        console.log('Session is paused, time tracking not started');
       }
 
       isInitializedRef.current = true;
@@ -579,15 +611,22 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
     if (!state.session) return;
 
     try {
+      // Stop time tracking immediately
+      stopTimeTracking();
+
       // Force sync before pausing
       if (autoSyncManagerRef.current) {
         await autoSyncManagerRef.current.forceSync();
       }
 
+      // Save current time spent to database with pause tracking
       await supabaseExamService.updateSession(state.session.id, state.session.user_id, {
         current_question_index: state.currentQuestionIndex,
         status: 'paused' as SessionStatus,
-        last_activity: new Date().toISOString()
+        last_activity: new Date().toISOString(),
+        time_spent_seconds: state.timeSpent,
+        last_pause_time: new Date().toISOString(),
+        is_time_tracking_active: false
       } as any);
 
       // Broadcast pause event
@@ -595,7 +634,7 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
         type: 'session_paused',
         sessionId: state.session.id,
         userId: state.session.user_id,
-        data: { currentQuestionIndex: state.currentQuestionIndex }
+        data: { currentQuestionIndex: state.currentQuestionIndex, timeSpent: state.timeSpent }
       });
 
       updateState(prev => ({
@@ -606,29 +645,37 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
     } catch (error: any) {
       updateState({ error: error.message });
     }
-  }, [state.session, state.currentQuestionIndex, updateState]);
+  }, [state.session, state.currentQuestionIndex, state.timeSpent, updateState, stopTimeTracking]);
 
   const resumeSession = useCallback(async () => {
     if (!state.session) return;
 
     try {
-      startTimeTracking();
-
-      // Update DB status
+      console.log('Resuming session with current time spent:', state.timeSpent);
+      
+      // Update DB status first with resume tracking
       await supabaseExamService.updateSession(state.session.id, state.session.user_id, {
         status: 'in_progress' as SessionStatus,
-        last_activity: new Date().toISOString()
+        last_activity: new Date().toISOString(),
+        time_tracking_started_at: new Date().toISOString(),
+        is_time_tracking_active: true
       } as any);
+
+      // Resume time tracking from where it left off
+      startTimeTracking();
 
       updateState(prev => ({
         ...prev,
         session: prev.session ? { ...prev.session, status: 'in_progress' as SessionStatus } : null
       }));
 
+      console.log('Session resumed, time tracking started from:', state.timeSpent);
+
     } catch (error: any) {
+      console.error('Error resuming session:', error);
       updateState({ error: error.message });
     }
-  }, [state.session, startTimeTracking, updateState]);
+  }, [state.session, startTimeTracking, updateState, state.timeSpent]);
 
   const completeSession = useCallback(async () => {
     if (!state.session) return;
@@ -636,10 +683,19 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
     try {
       updateState({ isLoading: true, syncStatus: 'syncing' });
 
+      // Stop time tracking and save final time
+      stopTimeTracking();
+
       // Force final sync
       if (autoSyncManagerRef.current) {
         await autoSyncManagerRef.current.forceSync();
       }
+
+      // Save final time spent before completing
+      await supabaseExamService.updateSession(state.session.id, state.session.user_id, {
+        time_spent_seconds: state.timeSpent,
+        end_time: new Date().toISOString()
+      } as any);
 
       // Complete the session
       await supabaseExamService.completeSession(state.session.id);
@@ -669,7 +725,7 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
         syncStatus: 'error'
       });
     }
-  }, [state.session, state.progress, state.timeSpent, updateState, cleanupRealtimeSync]);
+  }, [state.session, state.progress, state.timeSpent, updateState, cleanupRealtimeSync, stopTimeTracking]);
 
   const resetSession = useCallback(async () => {
     if (timeTrackingTimerRef.current) {

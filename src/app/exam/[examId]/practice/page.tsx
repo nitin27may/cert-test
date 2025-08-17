@@ -70,6 +70,8 @@ export default function ExamPracticePage() {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
+
+
   // Start or resume a DB-backed session - only run once
   useEffect(() => {
     // More comprehensive check to prevent boot loops
@@ -367,6 +369,8 @@ export default function ExamPracticePage() {
       alert('Failed to complete exam. Please try again.');
     }
   };
+
+
 
   // Check if session has questions, if not redirect to setup
   useEffect(() => {
@@ -841,9 +845,14 @@ export default function ExamPracticePage() {
                         key={index}
                         className={statusClasses}
                         onClick={() => {
-                          // TODO: Implement question navigation
-                          console.log('Navigate to question:', index);
+                          // Navigate to the selected question
+                          if (sessionActions.navigateToQuestion) {
+                            sessionActions.navigateToQuestion(index);
+                            // Reset explanation state when navigating
+                            setShowExplanation(false);
+                          }
                         }}
+                        title={`Go to question ${index + 1}`}
                       >
                         {index + 1}
                       </button>

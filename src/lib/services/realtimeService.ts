@@ -130,10 +130,30 @@ export class RealtimeService {
         },
         (payload) => {
           if (payload.new) {
-            // Parse JSON fields
+            // Parse JSON fields safely
+            let parsedUserAnswer = [];
+            try {
+              const userAnswer = (payload.new as any).user_answer;
+              if (userAnswer) {
+                // Check if it's already parsed
+                if (typeof userAnswer === 'string') {
+                  parsedUserAnswer = JSON.parse(userAnswer);
+                } else if (Array.isArray(userAnswer)) {
+                  parsedUserAnswer = userAnswer;
+                } else {
+                  console.warn('Unexpected user_answer format:', typeof userAnswer, userAnswer);
+                  parsedUserAnswer = [];
+                }
+              }
+            } catch (parseError) {
+              console.error('Failed to parse user_answer:', parseError);
+              console.warn('Raw user_answer value:', (payload.new as any).user_answer);
+              parsedUserAnswer = [];
+            }
+
             const answer = {
               ...payload.new,
-              user_answer: (payload.new as any).user_answer ? JSON.parse((payload.new as any).user_answer) : []
+              user_answer: parsedUserAnswer
             };
             callbacks.onAnswerUpdate?.(answer);
           }
@@ -253,13 +273,31 @@ export class RealtimeService {
         (payload) => {
           const question = payload.new || payload.old;
           if (question) {
-            // Parse JSON fields
+            // Parse JSON fields safely
+            const safeParse = (value: any, defaultValue: any) => {
+              if (!value) return defaultValue;
+              try {
+                if (typeof value === 'string') {
+                  return JSON.parse(value);
+                } else if (Array.isArray(value) || typeof value === 'object') {
+                  return value; // Already parsed
+                } else {
+                  console.warn('Unexpected value format for parsing:', typeof value, value);
+                  return defaultValue;
+                }
+              } catch (parseError) {
+                console.error('Failed to parse JSON field:', parseError);
+                console.warn('Raw value:', value);
+                return defaultValue;
+              }
+            };
+
             const parsedQuestion = {
               ...question,
-              options: question.options ? JSON.parse(question.options) : [],
-              correct_answers: question.correct_answers ? JSON.parse(question.correct_answers) : [],
-              reasoning: question.reasoning ? JSON.parse(question.reasoning) : null,
-              reference: question.reference ? JSON.parse(question.reference) : null
+              options: safeParse(question.options, []),
+              correct_answers: safeParse(question.correct_answers, []),
+              reasoning: safeParse(question.reasoning, null),
+              reference: safeParse(question.reference, null)
             };
             callbacks.onQuestionUpdate!(parsedQuestion);
           }

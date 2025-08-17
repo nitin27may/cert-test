@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -10,16 +10,11 @@ import { useTheme } from '@/contexts/ThemeContext';
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isExamDropdownOpen, setIsExamDropdownOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const { user, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const { exams } = useAvailableExams();
   const { theme, toggleTheme } = useTheme();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const handleLogout = async () => {
     try {
@@ -33,28 +28,6 @@ export default function Header() {
   };
 
   const isActive = (path: string) => pathname === path;
-
-  // Prevent hydration mismatch by not rendering theme-dependent content until mounted
-  if (!mounted) {
-    return (
-      <header className="bg-white dark:bg-gray-900 shadow-lg border-b border-gray-200 dark:border-gray-700 transition-colors">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Link href="/dashboard" className="flex items-center">
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center mr-3">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                  </svg>
-                </div>
-                <span className="text-xl font-bold text-gray-900 dark:text-white">Azure Practice Hub</span>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </header>
-    );
-  }
 
   return (
     <header className="bg-white dark:bg-gray-900 shadow-lg border-b border-gray-200 dark:border-gray-700 transition-colors">
@@ -70,6 +43,16 @@ export default function Header() {
               </div>
               <span className="text-xl font-bold text-gray-900 dark:text-white">Azure Practice Hub</span>
             </Link>
+            
+            {/* User Welcome Message */}
+            {user && (
+              <div className="ml-6 flex items-center">
+                <span className="text-sm text-gray-600 dark:text-gray-400 mr-2">Welcome,</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                  {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Desktop Navigation */}
@@ -90,6 +73,7 @@ export default function Header() {
               </div>
             </Link>
 
+            {/* Browse All Exams Link */}
             <Link
               href="/exams"
               className={`px-3 py-2 text-sm font-medium transition-colors ${
@@ -100,9 +84,9 @@ export default function Header() {
             >
               <div className="flex items-center">
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                 </svg>
-                All Tests
+                Browse All Exams
               </div>
             </Link>
 
@@ -140,6 +124,8 @@ export default function Header() {
                 </div>
               )}
             </div>
+
+
           </nav>
 
           {/* User Profile and Actions */}
