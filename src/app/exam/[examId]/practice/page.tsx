@@ -9,6 +9,23 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useOptimizedExamSession } from '@/hooks/useOptimizedExamSession';
 import { supabaseExamService } from '@/lib/services/supabaseService';
 import { realtimeService } from '@/lib/services/realtimeService';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
+import { 
+  Clock, 
+  Target, 
+  CheckCircle, 
+  XCircle, 
+  Play, 
+  Pause, 
+  ChevronLeft, 
+  ChevronRight,
+  BookOpen,
+  AlertCircle
+} from 'lucide-react';
 
 export default function ExamPracticePage() {
   const params = useParams();
@@ -90,7 +107,24 @@ export default function ExamPracticePage() {
         
         // Try to find an existing in-progress or paused session for this exam
         const { sessions } = await supabaseExamService.getUserSessions(user.id);
-        const existing = sessions.find(s => s.exam_id === examId && (s.status === 'in_progress' || s.status === 'paused'));
+        
+        console.log('Looking for existing sessions:', {
+          examId,
+          availableSessions: sessions.map(s => ({ id: s.id, exam_id: s.exam_id, status: s.status }))
+        });
+        
+        // Try to find existing session by exact exam_id match first
+        let existing = sessions.find(s => s.exam_id === examId && (s.status === 'in_progress' || s.status === 'paused'));
+        
+        // If no exact match, try to find by exam title (in case examId is a slug)
+        if (!existing) {
+          existing = sessions.find(s => {
+            const examTitle = s.exam_title?.toLowerCase();
+            const examIdLower = examId.toLowerCase();
+            return (examTitle?.includes(examIdLower) || examIdLower.includes(examTitle || '')) && 
+                   (s.status === 'in_progress' || s.status === 'paused');
+          });
+        }
         
         if (existing) {
           // Resume existing session
@@ -98,313 +132,120 @@ export default function ExamPracticePage() {
           await sessionActions.loadSession(existing.id, user.id);
           console.log('Resumed existing session:', existing.id);
         } else {
-          // No existing session found - redirect to setup page
-          console.log('No existing session found, redirecting to setup');
-          router.push(`/exam/${examId}/setup`);
-          return;
+          // Create new session
+          console.log('No existing session found, creating new session');
+          
+          // First verify the exam exists in the database
+          try {
+            const examExists = await supabaseExamService.getExamById(examId);
+            if (!examExists.exam) {
+              throw new Error(`Exam with ID '${examId}' not found in database`);
+            }
+            console.log('Exam verified:', examExists.exam.title);
+          } catch (examError) {
+            console.error('Exam verification failed:', examError);
+            throw new Error(`Cannot create session: Exam '${examId}' not found. Please check the exam ID.`);
+          }
+          
+          await sessionActions.createSession(user.id, {
+            exam_id: examId,
+            selected_topics: [],
+            question_limit: 50
+          });
+          console.log('New session created');
         }
+        
         bootCompletedRef.current = true;
-        console.log('Boot completed successfully');
+        
       } catch (error) {
-        console.error('Failed to boot session:', error);
-        // If there's an error, redirect to setup page
-        router.push(`/exam/${examId}/setup`);
+        console.error('Boot failed:', error);
+        // Don't set bootCompleted to true on error, allow retry
       } finally {
         setIsBooting(false);
       }
     };
     
     boot();
-  }, [user?.id, examId, sessionIdFromUrl]); // Removed volatile dependencies
+  }, [examId, user?.id, sessionActions, sessionState.isLoading, sessionIdFromUrl, isBooting]);
 
-  // Cleanup when examId changes
+  // Load user answers from session state
   useEffect(() => {
-    return () => {
-      bootCompletedRef.current = false;
-      setIsBooting(false);
-    };
-  }, [examId]);
-
-  // Load answers from database when session loads - with stable dependencies
-  useEffect(() => {
-    if (!sessionState.session?.id || !questions.length) return;
-
-    // Only proceed if session is fully loaded and not in loading state
-    if (sessionState.isLoading || !sessionState.currentQuestion || isBooting) {
-      return;
-    }
-
-    console.log('Attempting to load answers from session state. Answers size:', sessionState.answers?.size || 0);
-
-    // If we have answers in the session state, load them
-    if (sessionState.answers && sessionState.answers.size > 0) {
-      const answersFromDb: Record<number, number | number[]> = {};
+    if (sessionState.answers && sessionState.answers.size > 0 && questions.length > 0) {
+      const answersMap: Record<number, number | number[]> = {};
+      const checkedMap: Record<number, boolean> = {};
       
+      // Map answers from questionId (database) to questionIndex (UI)
       sessionState.answers.forEach((answer, questionId) => {
-        // Find the question index by question ID
+        // Find the question index by matching the question ID
         const questionIndex = questions.findIndex(q => q.id === questionId);
         if (questionIndex !== -1) {
-          answersFromDb[questionIndex] = answer.user_answer;
-          console.log(`Mapping question ${questionId} (index ${questionIndex}) -> answer:`, answer.user_answer);
-        } else {
-          console.warn(`Question with ID ${questionId} not found in questions array`);
+          answersMap[questionIndex] = answer.user_answer;
+          // Mark as checked if the answer has been submitted
+          checkedMap[questionIndex] = true;
         }
       });
       
-      console.log('Setting user answers from session state:', answersFromDb);
-      setUserAnswers(answersFromDb);
-    } else {
-      console.log('No answers found in session state, checking if we need to clear existing answers');
-      // Only clear if we had answers before but now we don't
-      if (Object.keys(userAnswers).length > 0) {
-        console.log('Clearing user answers as session state has no answers');
-        setUserAnswers({});
-      }
+      setUserAnswers(answersMap);
+      setCheckedAnswers(checkedMap);
+      console.log('Loaded answers from session:', answersMap);
+      console.log('Loaded checked answers:', checkedMap);
     }
-  }, [sessionState.session?.id, sessionState.answers?.size, sessionState.isLoading, sessionState.currentQuestion, questions.length, isBooting]);
-
-  // Also add a direct effect to watch for answers changes
-  useEffect(() => {
-    if (!sessionState.answers || sessionState.answers.size === 0) return;
-    
-    console.log('Session answers changed, size:', sessionState.answers.size);
-    
-    // Convert Map<number, ParsedUserAnswer> to Record<number, number[]> 
-    const answersFromState: Record<number, number | number[]> = {};
-    
-    sessionState.answers.forEach((answer, questionId) => {
-      const questionIndex = questions.findIndex(q => q.id === questionId);
-      if (questionIndex !== -1) {
-        answersFromState[questionIndex] = answer.user_answer;
-      }
-    });
-    
-    console.log('Updated user answers from session state:', answersFromState);
-    setUserAnswers(prev => {
-      // Only update if there's actually a change to prevent infinite loops
-      const hasChanged = Object.keys(answersFromState).some(key => 
-        JSON.stringify(prev[parseInt(key)]) !== JSON.stringify(answersFromState[parseInt(key)])
-      );
-      
-      if (hasChanged) {
-        console.log('User answers changed, updating state');
-        return answersFromState;
-      }
-      return prev;
-    });
   }, [sessionState.answers, questions]);
 
-  // Force refresh visual state when component mounts or session resumes
-  useEffect(() => {
-    if (sessionState.answers && sessionState.answers.size > 0 && questions.length > 0 && !sessionState.isLoading) {
-      // Force a re-render to ensure visual state is applied
-      const timer = setTimeout(() => {
-        console.log('Force refreshing visual state for answers');
-        // Trigger a re-render by updating a state variable
-        setUserAnswers(prev => ({ ...prev }));
+  // Handle answer selection
+  const handleAnswerSelect = useCallback(async (optionIndex: number) => {
+    if (!currentQuestion || !sessionState.session) return;
+    
+    try {
+      let newAnswer: number | number[];
+      
+      if (currentQuestion.type === 'multiple') {
+        // For multiple choice, toggle the option
+        const currentAnswer = userAnswers[currentQuestionIndex] || [];
+        const currentArray = Array.isArray(currentAnswer) ? currentAnswer : [currentAnswer];
         
-        // Also ensure that checked answers show explanations
-        const currentQuestionChecked = checkedAnswers[currentQuestionIndex];
-        if (currentQuestionChecked && !showExplanation) {
-          console.log('Auto-showing explanation for checked question');
-          setShowExplanation(true);
+        if (currentArray.includes(optionIndex)) {
+          // Remove option if already selected
+          newAnswer = currentArray.filter(i => i !== optionIndex);
+        } else {
+          // Add option if not selected
+          newAnswer = [...currentArray, optionIndex];
         }
-      }, 100);
+      } else {
+        // For single choice, replace the answer
+        newAnswer = optionIndex;
+      }
       
-      return () => clearTimeout(timer);
+      // Update local state immediately for responsive UI
+      setUserAnswers(prev => ({
+        ...prev,
+        [currentQuestionIndex]: newAnswer
+      }));
+      
+      // Save to database - use question ID, not index
+      await sessionActions.submitAnswer(currentQuestion.id, Array.isArray(newAnswer) ? newAnswer : [newAnswer]);
+      
+    } catch (error) {
+      console.error('Failed to submit answer:', error);
+      // Revert local state on error
+      setUserAnswers(prev => ({
+        ...prev,
+        [currentQuestionIndex]: userAnswers[currentQuestionIndex]
+      }));
     }
-  }, [sessionState.answers, questions, sessionState.isLoading, currentQuestionIndex, checkedAnswers, showExplanation]);
+  }, [currentQuestion, currentQuestionIndex, userAnswers, sessionState.session, sessionActions]);
 
-  // Additional force refresh when userAnswers change to ensure visual state is applied
-  useEffect(() => {
-    if (Object.keys(userAnswers).length > 0) {
-      console.log('User answers changed, ensuring visual state is applied');
-      // Force a re-render to ensure visual state is applied
-      const timer = setTimeout(() => {
-        setUserAnswers(prev => ({ ...prev }));
-      }, 50);
-      
-      return () => clearTimeout(timer);
+  // Verify selection state for robust UI updates
+  const verifySelectionState = useCallback((questionIndex: number, optionIndex: number): boolean => {
+    const userAnswer = userAnswers[questionIndex];
+    if (userAnswer === undefined) return false;
+    
+    if (Array.isArray(userAnswer)) {
+      return userAnswer.includes(optionIndex);
+    } else {
+      return userAnswer === optionIndex;
     }
   }, [userAnswers]);
-
-  // Function to load answers directly from database
-  const loadAnswersFromDatabase = async (sessionId: string) => {
-    try {
-      console.log('Loading answers directly from database for session:', sessionId);
-      const answers = await supabaseExamService.getSessionAnswers(sessionId);
-
-      if (answers && answers.length > 0) {
-        const answersFromDb: Record<number, number | number[]> = {};
-        answers.forEach((answer: any) => {
-          // Find the question index by question ID
-          const questionIndex = questions.findIndex(q => q.id === answer.question_id);
-          if (questionIndex !== -1) {
-            // Parse the user_answer JSON
-            try {
-              const parsedAnswer = JSON.parse(answer.user_answer);
-              answersFromDb[questionIndex] = parsedAnswer;
-            } catch (parseError) {
-              console.error('Error parsing user_answer:', parseError);
-            }
-          }
-        });
-        
-        setUserAnswers(answersFromDb);
-        console.log('Loaded answers directly from database:', answersFromDb);
-      } else {
-        console.log('No answers found in database for session:', sessionId);
-      }
-    } catch (error) {
-      console.error('Failed to load answers from database:', error);
-    }
-  };
-
-  // Remove the duplicate real-time setup since useOptimizedExamSession handles it
-  // The hook already sets up real-time sync when a session is created/loaded
-
-  const handleAnswerSelect = useCallback(async (answerIndex: number) => {
-    if (showExplanation || !currentQuestion) return;
-    
-    // Calculate the new answer value
-    let newAnswer: number | number[];
-    
-    if (currentQuestion.type === 'multiple') {
-      // Handle multiple selection
-      const currentAnswer = userAnswers[currentQuestionIndex];
-      const currentAnswers = Array.isArray(currentAnswer) ? currentAnswer : [];
-      const isSelected = currentAnswers.includes(answerIndex);
-      
-      if (isSelected) {
-        // Remove from selection
-        newAnswer = currentAnswers.filter(idx => idx !== answerIndex);
-      } else {
-        // Add to selection
-        newAnswer = [...currentAnswers, answerIndex];
-      }
-    } else {
-      // Handle single selection
-      newAnswer = answerIndex;
-    }
-
-    // Update local state immediately for UI responsiveness
-    setUserAnswers(prev => ({
-      ...prev,
-      [currentQuestionIndex]: newAnswer
-    }));
-
-    // Submit answer directly - let the hook handle debouncing
-    try {
-      const answerArray = Array.isArray(newAnswer) ? newAnswer : [newAnswer];
-      
-      // Use the question ID from the current question, not the index
-      await sessionActions.submitAnswer(currentQuestion.id, answerArray, 0);
-      
-      console.log('Answer submitted successfully:', {
-        questionIndex: currentQuestionIndex,
-        questionId: currentQuestion.id,
-        userAnswer: newAnswer,
-        answerArray
-      });
-    } catch (error) {
-      console.error('Failed to save answer to database:', error);
-      // Revert local state on error
-      setUserAnswers(prev => {
-        const reverted = { ...prev };
-        delete reverted[currentQuestionIndex];
-        return reverted;
-      });
-    }
-  }, [showExplanation, currentQuestion, userAnswers, currentQuestionIndex, sessionActions.submitAnswer]);
-
-  // Sync checkedAnswers with session state when answers are loaded
-  useEffect(() => {
-    if (sessionState.answers && sessionState.answers.size > 0 && questions.length > 0) {
-      const newCheckedAnswers: Record<number, boolean> = {};
-      
-      // Mark all answered questions as checked
-      sessionState.answers.forEach((answer, questionId) => {
-        // Find the question index by matching the question ID
-        const questionIndex = questions.findIndex(q => q.id === questionId);
-        if (questionIndex !== -1) {
-          newCheckedAnswers[questionIndex] = true;
-        }
-      });
-      
-      setCheckedAnswers(newCheckedAnswers);
-      console.log('Synced checked answers with session state:', newCheckedAnswers);
-    }
-  }, [sessionState.answers, questions]);
-
-  // Sync userAnswers with session state
-  useEffect(() => {
-    if (sessionState.answers && sessionState.answers.size > 0 && questions.length > 0) {
-      const newUserAnswers: Record<number, number | number[]> = {};
-      
-      sessionState.answers.forEach((answer, questionId) => {
-        // Find the question index by matching the question ID
-        const questionIndex = questions.findIndex(q => q.id === questionId);
-        if (questionIndex !== -1) {
-          try {
-            // Parse the user_answer if it's a string
-            if (typeof answer.user_answer === 'string') {
-              newUserAnswers[questionIndex] = JSON.parse(answer.user_answer);
-            } else {
-              newUserAnswers[questionIndex] = answer.user_answer;
-            }
-          } catch (parseError) {
-            console.error('Failed to parse user answer:', answer, parseError);
-            newUserAnswers[questionIndex] = [];
-          }
-        }
-      });
-      
-      setUserAnswers(newUserAnswers);
-      console.log('Synced user answers with session state:', newUserAnswers);
-    }
-  }, [sessionState.answers, questions]);
-
-  // Additional sync when current question changes to ensure visual state is correct
-  useEffect(() => {
-    if (currentQuestionIndex >= 0 && questions.length > 0) {
-      console.log('Current question changed, checking answer state:', {
-        currentQuestionIndex,
-        userAnswer: userAnswers[currentQuestionIndex],
-        hasAnswer: userAnswers.hasOwnProperty(currentQuestionIndex),
-        totalUserAnswers: Object.keys(userAnswers).length
-      });
-    }
-  }, [currentQuestionIndex, questions, userAnswers]);
-
-  // Helper function to manually verify selection state
-  const verifySelectionState = useCallback((questionIndex: number, optionIndex: number) => {
-    const userAnswer = userAnswers[questionIndex];
-    const question = questions[questionIndex];
-    
-    if (!question || !userAnswers.hasOwnProperty(questionIndex)) {
-      console.log(`Selection verification failed: No question or answer for index ${questionIndex}`);
-      return false;
-    }
-    
-    let isSelected = false;
-    if (question.type === 'multiple') {
-      isSelected = Array.isArray(userAnswer) && userAnswer.includes(optionIndex);
-    } else {
-      // For single selection, check both exact match and array inclusion
-      isSelected = userAnswer === optionIndex || (Array.isArray(userAnswer) && userAnswer.includes(optionIndex));
-    }
-    
-    console.log(`Selection verification for question ${questionIndex}, option ${optionIndex}:`, {
-      userAnswer,
-      userAnswerType: typeof userAnswer,
-      userAnswerIsArray: Array.isArray(userAnswer),
-      questionType: question.type,
-      isSelected,
-      verificationResult: isSelected
-    });
-    
-    return isSelected;
-  }, [userAnswers, questions]);
 
   const handleNext = useCallback(() => {
     sessionActions.nextQuestion();
@@ -562,9 +403,9 @@ export default function ExamPracticePage() {
 
   if (sessionState.session && (!sessionState.session.questions || sessionState.session.questions.length === 0)) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="text-lg text-gray-900 dark:text-white mb-4">
+          <div className="text-lg text-foreground mb-4">
             Redirecting to exam setup...
           </div>
         </div>
@@ -577,20 +418,14 @@ export default function ExamPracticePage() {
 
   if (loadingCondition) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-lg text-gray-900 dark:text-white mb-4">
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <div className="text-lg text-foreground">
             {isBooting ? 'Starting exam session...' : 'Loading session...'}
           </div>
-          <div className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
-            <div>Loading: {sessionState.isLoading ? 'Yes' : 'No'}</div>
-            <div>Session: {sessionState.session ? 'Loaded' : 'Not Loaded'}</div>
-            <div>Current Question: {currentQuestion ? 'Loaded' : 'Not Loaded'}</div>
-            <div>Booting: {isBooting ? 'Yes' : 'No'}</div>
-            <div>Questions Count: {sessionState.session?.questions?.length || 0}</div>
-            <div>Questions Array: {questions.length}</div>
-            <div>Current Question Index: {currentQuestionIndex}</div>
-            {sessionState.error && <div className="text-red-500">Error: {sessionState.error}</div>}
+          <div className="text-sm text-muted-foreground">
+            Please wait while we prepare your exam
           </div>
         </div>
       </div>
@@ -599,501 +434,481 @@ export default function ExamPracticePage() {
 
   if (questions.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="min-h-screen bg-background">
         <Header />
-        <div className="max-w-4xl mx-auto p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-100 dark:border-gray-700">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
-                </svg>
+        <div className="max-w-4xl mx-auto p-6">
+          <Card className="border-destructive/50">
+            <CardHeader className="text-center">
+              <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="w-8 h-8 text-destructive" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">No Questions Available</h1>
-              
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4 mb-6 max-w-2xl mx-auto">
-                <h3 className="font-medium text-yellow-800 dark:text-yellow-200 mb-3">Debug Information</h3>
-                <div className="text-sm text-yellow-700 dark:text-yellow-300 text-left space-y-2">
-                  <p><strong>Exam ID:</strong> {examId}</p>
-                  <p><strong>Config Loaded:</strong> {sessionState.session ? 'Yes' : 'No'}</p>
-                  <p><strong>Selected Topics:</strong> {sessionState.session?.selected_topics?.join(', ') || 'None'}</p>
-                  <p><strong>Question Count:</strong> {sessionState.session?.question_limit}</p>
-                  <p><strong>Session:</strong> {sessionState.session ? 'Loaded' : 'Not Loaded'}</p>
-                  <p><strong>Questions Array:</strong> {questions?.length || 0} questions</p>
-                  <p><strong>Error:</strong> {sessionState.error || 'None'}</p>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                <p className="text-gray-600 dark:text-gray-300">
-                  This could be due to:
-                </p>
-                <ul className="text-left text-gray-600 dark:text-gray-300 space-y-2 max-w-md mx-auto">
-                  <li>• No questions match the selected topics</li>
-                  <li>• Topic filtering is too restrictive</li>
-                  <li>• Exam data is not properly loaded</li>
-                  <li>• Questions array is empty</li>
-                </ul>
-              </div>
-              
-              <div className="mt-6 flex space-x-4 justify-center">
-                <button
+              <CardTitle className="text-2xl text-destructive">No Questions Available</CardTitle>
+            </CardHeader>
+            <CardContent className="text-center space-y-6">
+              <p className="text-muted-foreground">
+                This could be due to no questions matching the selected topics or exam data not being properly loaded.
+              </p>
+              <div className="flex space-x-4 justify-center">
+                <Button
                   onClick={() => router.push(`/exam/${examId}/setup`)}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                  variant="outline"
                 >
                   Back to Exam Setup
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => window.location.reload()}
-                  className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                  variant="outline"
                 >
                   Reload Page
-                </button>
+                </Button>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
   }
 
   // Remove the duplicate currentQuestion declaration and use the one from sessionState
-  // const currentQuestion = questions[currentQuestionIndex];
   const userAnswer = userAnswers[currentQuestionIndex];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+    <div className="min-h-screen bg-background transition-colors">
       <Header />
-      <div className="max-w-4xl mx-auto p-4">
-        {/* Header */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6 border border-gray-100 dark:border-gray-700">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">{examTitle}</h1>
-              <p className="text-gray-600 dark:text-gray-300">
-                Question {currentQuestionIndex + 1} of {questions.length}
-              </p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={handlePauseTest}
-                className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 text-sm"
-              >
-                Pause Test
-              </button>
-              <div className="text-right">
-                <div className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {formatTime(timeRemaining)}
+      
+      <div className="max-w-7xl mx-auto p-6 space-y-6">
+        {/* Exam Header */}
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+              <div className="space-y-2">
+                <h1 className="text-2xl font-bold text-foreground">
+                  {sessionState.session?.exam_title || examTitle}
+                </h1>
+                <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                  <span className="flex items-center space-x-2">
+                    <BookOpen className="w-4 h-4" />
+                    <span>Question {currentQuestionIndex + 1} of {questions.length}</span>
+                  </span>
+                  <span className="flex items-center space-x-2">
+                    <Target className="w-4 h-4" />
+                    <span>{Math.round(((currentQuestionIndex + 1) / questions.length) * 100)}% Complete</span>
+                  </span>
                 </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Time Remaining</div>
+              </div>
+              
+              <div className="flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-4">
+                <Button
+                  onClick={handlePauseTest}
+                  variant="outline"
+                  size="sm"
+                  className="w-full sm:w-auto"
+                >
+                  <Pause className="w-4 h-4 mr-2" />
+                  Pause Test
+                </Button>
+                
+                <div className="text-center bg-muted/50 rounded-lg p-3 min-w-[100px]">
+                  <div className="text-2xl font-bold text-foreground">
+                    {formatTime(timeRemaining)}
+                  </div>
+                  <div className="text-xs text-muted-foreground flex items-center justify-center">
+                    <Clock className="w-3 h-3 mr-1" />
+                    Time Remaining
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-          
-          {/* Progress Bar */}
-          <div className="mt-4">
-            <div className="bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-              <div 
-                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
-              ></div>
+            
+            {/* Progress Bar */}
+            <div className="mt-6">
+              <Progress 
+                value={((currentQuestionIndex + 1) / questions.length) * 100} 
+                className="h-2"
+              />
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
           {/* Question Content */}
-          <div className="lg:col-span-3">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-100 dark:border-gray-700">
-              {/* Debug Information */}
-              {process.env.NODE_ENV === 'development' && (
-                <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded text-xs">
-                  <strong>Debug Info:</strong>
-                  <div>Current Question Index: {currentQuestionIndex}</div>
-                  <div>User Answers: {JSON.stringify(userAnswers)}</div>
-                  <div>Session Answers Count: {sessionState.answers?.size || 0}</div>
-                  <div>Show Explanation: {showExplanation ? 'Yes' : 'No'}</div>
-                  <div>Checked Answers: {JSON.stringify(checkedAnswers)}</div>
+          <div className="xl:col-span-3 space-y-6">
+            {/* Question Card */}
+            <Card className="border-0 shadow-sm">
+              <CardContent className="p-6">
+                {/* Question Tags */}
+                <div className="flex flex-wrap gap-2 mb-6">
+                  <Badge variant="secondary" className="text-xs">
+                    {currentQuestion.topic_id || 'Unknown Topic'}
+                  </Badge>
+                  {currentQuestion.difficulty && (
+                    <Badge variant="outline" className="text-xs">
+                      {currentQuestion.difficulty}
+                    </Badge>
+                  )}
                 </div>
-              )}
-              
-              {/* Question Header */}
-              
-              <div className="mb-4 flex flex-wrap gap-2">
-                <span className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs px-2 py-1 rounded-full">
-                  {/* Find topic name from topic ID */}
-                  {currentQuestion.topic_id || 'Unknown Topic'}
-                </span>
-                {currentQuestion.difficulty && (
-                  <span className="inline-block bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-xs px-2 py-1 rounded-full ml-2">
-                    {currentQuestion.difficulty}
-                  </span>
-                )}
-              </div>
-              
-              <div className="text-lg font-medium text-gray-900 dark:text-white mb-6">
-                {currentQuestion.question_text}
-              </div>
-
-              {/* Question type indicator */}
-              <div className="mb-4 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
-                <p className="text-sm text-blue-800 dark:text-blue-300">
-                  {currentQuestion.type === 'multiple' 
-                    ? '📝 Select all correct answers (multiple selection)' 
-                    : '🔘 Select one answer (single selection)'
-                  }
-                </p>
-              </div>
-
-              {/* Answer Options */}
-              <div className="space-y-3">
-                {/* Debug: Show current answer state */}
-                {process.env.NODE_ENV === 'development' && (
-                  <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded text-xs">
-                    <strong>Answer State Debug:</strong>
-                    <div>Current Question Index: {currentQuestionIndex}</div>
-                    <div>User Answer for this question: {JSON.stringify(userAnswers[currentQuestionIndex])}</div>
-                    <div>User Answer Type: {typeof userAnswers[currentQuestionIndex]}</div>
-                    <div>User Answer Is Array: {Array.isArray(userAnswers[currentQuestionIndex]) ? 'Yes' : 'No'}</div>
-                    <div>Question Type: {currentQuestion.type}</div>
-                    <div>Correct Answers: {JSON.stringify(currentQuestion.correct_answers)}</div>
-                    <div>Show Result: {showExplanation ? 'Yes' : 'No'}</div>
-                    <div>All User Answers: {JSON.stringify(userAnswers)}</div>
-                    <div>Verification - Option A (0): {verifySelectionState(currentQuestionIndex, 0) ? 'Selected' : 'Not Selected'}</div>
-                    <div>Verification - Option B (1): {verifySelectionState(currentQuestionIndex, 1) ? 'Selected' : 'Not Selected'}</div>
-                    <button 
-                      onClick={() => {
-                        console.log('Manual refresh triggered');
-                        setUserAnswers(prev => ({ ...prev }));
-                      }}
-                      className="mt-2 px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600"
-                    >
-                      Force Refresh Visual State
-                    </button>
-                  </div>
-                )}
                 
-                {currentQuestion.options.map((option, index) => {
-                  const userAnswer = userAnswers[currentQuestionIndex];
-                  const correctAnswers = currentQuestion.correct_answers;
-                  
-                  // Use the verification function for more robust selection detection
-                  const isSelected = verifySelectionState(currentQuestionIndex, index);
-                  
-                  const isCorrect = correctAnswers.includes(index);
-                  const showResult = showExplanation;
-                  
-                  // Enhanced debug logging for each option
-                  if (process.env.NODE_ENV === 'development') {
-                    console.log(`Option ${index} (${String.fromCharCode(65 + index)}):`, {
-                      option: option.substring(0, 30) + '...',
-                      userAnswer,
-                      userAnswerType: typeof userAnswer,
-                      userAnswerIsArray: Array.isArray(userAnswer),
-                      currentQuestionIndex,
-                      isSelected,
-                      isCorrect,
-                      showResult,
-                      correctAnswers,
-                      correctAnswersType: typeof correctAnswers
-                    });
-                  }
-                  
-                  // Determine the visual state based on best practices
-                  let buttonClass = "w-full text-left p-4 border rounded-lg transition-colors ";
-                  let checkboxClass = "";
-                  let showCheckmark = false;
-                  
-                  if (showResult) {
-                    // After checking answer - show correct/incorrect status
-                    if (isCorrect) {
-                      // Correct answers are always green
-                      buttonClass += "bg-green-100 dark:bg-green-900/30 border-green-500 dark:border-green-600 text-green-800 dark:text-green-300";
-                      checkboxClass = "bg-green-500 border-green-500";
-                      showCheckmark = true;
-                    } else if (isSelected) {
-                      // Only highlight user's incorrect selections in red
-                      buttonClass += "bg-red-100 dark:bg-red-900/30 border-red-500 dark:border-red-600 text-red-800 dark:text-red-300";
-                      checkboxClass = "bg-red-500 border-red-500";
-                      showCheckmark = false;
-                    } else {
-                      // Unselected incorrect answers show default styling (not highlighted)
-                      buttonClass += "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white";
-                      checkboxClass = "border-gray-300 dark:border-gray-600";
-                      showCheckmark = false;
-                    }
-                  } else {
-                    // Before checking answer - show selection state
-                    if (isSelected) {
-                      buttonClass += "bg-blue-100 dark:bg-blue-900/30 border-blue-500 dark:border-blue-600 text-blue-800 dark:text-blue-300";
-                      checkboxClass = "bg-blue-500 border-blue-500";
-                      showCheckmark = true;
-                    } else {
-                      buttonClass += "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700";
-                      checkboxClass = "border-gray-300 dark:border-gray-600";
-                      showCheckmark = false;
-                    }
-                  }
+                                 {/* Question Text */}
+                 <div className="mb-6">
+                   <div className="flex items-start">
+                     <span className="inline-block bg-primary/10 text-primary font-bold px-3 py-1 rounded-lg mr-4 mt-1 flex-shrink-0">
+                       Q{currentQuestionIndex + 1}
+                     </span>
+                     <h2 className="text-xl font-semibold text-foreground leading-relaxed">
+                       {currentQuestion.question_text}
+                     </h2>
+                   </div>
+                 </div>
 
-                  return (
-                    <button
-                      key={index}
-                      onClick={() => handleAnswerSelect(index)}
-                      className={buttonClass}
-                      disabled={showResult} // Disable selection after checking answer
-                    >
-                      <div className="flex items-center">
-                        {currentQuestion.type === 'multiple' ? (
-                          <div className={`w-4 h-4 mr-3 border-2 rounded ${checkboxClass} flex items-center justify-center`}>
-                            {showCheckmark && (
-                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
+                {/* Question Type Indicator */}
+                <div className="mb-6 p-4 bg-muted/30 rounded-lg border border-border/50">
+                  <p className="text-sm text-muted-foreground flex items-center">
+                    {currentQuestion.type === 'multiple' ? (
+                      <>
+                        <CheckCircle className="w-4 h-4 mr-2 text-blue-500" />
+                        Select all correct answers (multiple selection)
+                      </>
+                    ) : (
+                      <>
+                        <Target className="w-4 h-4 mr-2 text-blue-500" />
+                        Select one answer (single selection)
+                      </>
+                    )}
+                  </p>
+                </div>
+
+                {/* Answer Options */}
+                <div className="space-y-3">
+                  {currentQuestion.options.map((option, index) => {
+                    const isSelected = verifySelectionState(currentQuestionIndex, index);
+                    const isCorrect = currentQuestion.correct_answers.includes(index);
+                    const showResult = showExplanation;
+                    
+                    let optionClasses = "w-full text-left p-4 border rounded-lg transition-all duration-200 hover:shadow-sm ";
+                    let iconClasses = "w-5 h-5 mr-3 ";
+                    
+                    if (showResult) {
+                      // After checking answer - show correct/incorrect status
+                      if (isCorrect) {
+                        optionClasses += "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800 text-green-900 dark:text-green-100";
+                        iconClasses += "text-green-600";
+                      } else if (isSelected) {
+                        optionClasses += "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800 text-red-900 dark:text-red-100";
+                        iconClasses += "text-red-600";
+                      } else {
+                        optionClasses += "bg-background border-border text-foreground";
+                        iconClasses += "text-muted-foreground";
+                      }
+                    } else {
+                      // Before checking answer - show selection state
+                      if (isSelected) {
+                        optionClasses += "bg-primary/10 border-primary text-primary";
+                        iconClasses += "text-primary";
+                      } else {
+                        optionClasses += "bg-background border-border text-foreground hover:bg-muted/50";
+                        iconClasses += "text-muted-foreground";
+                      }
+                    }
+
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => handleAnswerSelect(index)}
+                        className={optionClasses}
+                        disabled={showResult}
+                      >
+                        <div className="flex items-start">
+                          {currentQuestion.type === 'multiple' ? (
+                            <div className={`w-5 h-5 mr-3 mt-0.5 border-2 rounded flex items-center justify-center ${isSelected ? 'bg-primary border-primary' : 'border-border'}`}>
+                              {isSelected && (
+                                <CheckCircle className="w-3 h-3 text-primary-foreground" />
+                              )}
+                            </div>
+                          ) : (
+                            <div className={`w-5 h-5 mr-3 mt-0.5 border-2 rounded-full flex items-center justify-center ${isSelected ? 'bg-primary border-primary' : 'border-border'}`}>
+                              {isSelected && <div className="w-2.5 h-2.5 bg-primary-foreground rounded-full"></div>}
+                            </div>
+                          )}
+                          
+                          <div className="flex-1 text-left">
+                            <span className="font-medium text-sm text-muted-foreground mr-3">
+                              {String.fromCharCode(65 + index)}.
+                            </span>
+                            <span className="text-foreground">{option}</span>
+                            
+                            {/* Status indicator when showing results */}
+                            {showResult && (
+                              <div className="mt-2 flex items-center space-x-2">
+                                {isSelected && (
+                                  <Badge 
+                                    variant={isCorrect ? "default" : "destructive"}
+                                    className="text-xs"
+                                  >
+                                    {isCorrect ? (
+                                      <>
+                                        <CheckCircle className="w-3 h-3 mr-1" />
+                                        Correct
+                                      </>
+                                    ) : (
+                                      <>
+                                        <XCircle className="w-3 h-3 mr-1" />
+                                        Wrong
+                                      </>
+                                    )}
+                                  </Badge>
+                                )}
+                                {!isSelected && isCorrect && (
+                                  <Badge variant="default" className="text-xs">
+                                    <CheckCircle className="w-3 h-3 mr-1" />
+                                    Correct Answer
+                                  </Badge>
+                                )}
+                              </div>
                             )}
                           </div>
-                        ) : (
-                          <div className={`w-4 h-4 mr-3 border-2 rounded-full ${checkboxClass} flex items-center justify-center`}>
-                            {showCheckmark && <div className="w-2 h-2 bg-white rounded-full"></div>}
-                          </div>
-                        )}
-                        <span className="font-medium mr-3 min-w-[24px]">
-                          {String.fromCharCode(65 + index)}.
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Explanation */}
+                {showExplanation && (
+                  <div className="mt-8 p-6 bg-muted/30 rounded-lg border border-border/50">
+                    {/* Score Indicator */}
+                    <div className="mb-6 p-4 bg-background rounded-lg border">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-muted-foreground">
+                          Question Result:
                         </span>
-                        <span className="flex-1">{option}</span>
-                        
-                        {/* Status indicator when showing results */}
-                        {showResult && (
-                          <div className="ml-2 flex items-center space-x-2">
-                            {isSelected && (
-                              <span className={`px-2 py-1 text-xs rounded-full font-medium ${
-                                isCorrect 
-                                  ? 'bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200'
-                                  : 'bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200'
-                              }`}>
-                                {isCorrect ? '✓ Correct' : '✗ Wrong'}
-                              </span>
-                            )}
-                            {!isSelected && isCorrect && (
-                              <span className="px-2 py-1 bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 text-xs rounded-full font-medium">
-                                ✓ Correct Answer
-                              </span>
-                            )}
-                            {/* Remove the badge for unselected incorrect answers - they should not be highlighted */}
-                          </div>
-                        )}
+                        <Badge 
+                          variant={isCurrentQuestionCorrect() ? "default" : "destructive"}
+                          className="text-sm"
+                        >
+                          {isCurrentQuestionCorrect() ? (
+                            <>
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              Correct
+                            </>
+                          ) : (
+                            <>
+                              <XCircle className="w-4 h-4 mr-2" />
+                              Incorrect
+                            </>
+                          )}
+                        </Badge>
                       </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Explanation */}
-              {showExplanation && (
-                <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
-                  {/* Score Indicator */}
-                  <div className="mb-4 p-3 bg-white dark:bg-gray-800 rounded border">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Question Result:
-                      </span>
-                      <span className={`text-sm font-bold ${
-                        isCurrentQuestionCorrect() 
-                          ? 'text-green-600 dark:text-green-400' 
-                          : 'text-red-600 dark:text-red-400'
-                      }`}>
-                        {isCurrentQuestionCorrect() ? '✓ Correct' : '✗ Incorrect'}
-                      </span>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <h3 className="font-semibold text-foreground mb-2">Explanation:</h3>
+                        <p className="text-muted-foreground leading-relaxed">{currentQuestion.explanation}</p>
+                      </div>
+                      
+                      {currentQuestion.reasoning && (
+                        <div className="space-y-4">
+                          <div>
+                            <h4 className="font-medium text-green-700 dark:text-green-300 mb-2">
+                              Why this is correct:
+                            </h4>
+                            <p className="text-muted-foreground">{currentQuestion.reasoning.correct}</p>
+                          </div>
+                          
+                          <div>
+                            <h4 className="font-medium text-red-700 dark:text-red-300 mb-2">
+                              Why other options are wrong:
+                            </h4>
+                            <div className="space-y-2">
+                              {Object.entries(currentQuestion.reasoning.why_others_wrong).map(([key, reason]) => (
+                                <div key={key} className="text-muted-foreground">
+                                  <span className="font-medium text-foreground">
+                                    {String.fromCharCode(65 + parseInt(key))}.
+                                  </span> {reason}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Reference Link */}
+                      {currentQuestion.reference && (
+                        <div>
+                          <Separator className="my-4" />
+                          <div>
+                            <h4 className="font-medium text-foreground mb-2">
+                              Reference:
+                            </h4>
+                            <a
+                              href={currentQuestion.reference.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:text-primary/80 underline hover:no-underline transition-colors inline-flex items-center gap-1"
+                            >
+                              {currentQuestion.reference.title}
+                            </a>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  
-                  <h3 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">Explanation:</h3>
-                  <p className="text-blue-800 dark:text-blue-300 mb-4">{currentQuestion.explanation}</p>
-                  
-                  {currentQuestion.reasoning && (
-                    <>
-                      <div className="text-sm">
-                        <div className="font-semibold text-green-800 dark:text-green-300 mb-2">
-                          Why this is correct:
-                        </div>
-                        <p className="text-green-700 dark:text-green-400 mb-4">{currentQuestion.reasoning.correct}</p>
-                        
-                        <div className="font-semibold text-red-800 dark:text-red-300 mb-2">
-                          Why other options are wrong:
-                        </div>
-                        {Object.entries(currentQuestion.reasoning.why_others_wrong).map(([key, reason]) => (
-                          <div key={key} className="text-red-700 dark:text-red-400 mb-2">
-                            <span className="font-medium">
-                              {String.fromCharCode(65 + parseInt(key))}.
-                            </span> {reason}
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                  
-                  {/* Reference Link */}
-                  {currentQuestion.reference && (
-                    <div className="mt-4 pt-4 border-t border-blue-200 dark:border-blue-700">
-                      <div className="font-semibold text-blue-900 dark:text-blue-300 mb-2">
-                        📚 Reference:
-                      </div>
-                      <a
-                        href={currentQuestion.reference.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline hover:no-underline transition-colors inline-flex items-center gap-1"
-                      >
-                        {currentQuestion.reference.title}
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </a>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Navigation */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-100 dark:border-gray-700">
-              <div className="flex justify-between items-center">
-                <button
-                  onClick={handlePrevious}
-                  disabled={currentQuestionIndex === 0}
-                  className="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
+            <Card className="border-0 shadow-sm">
+              <CardContent className="p-6">
+                <div className="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
+                  <Button
+                    onClick={handlePrevious}
+                    disabled={currentQuestionIndex === 0}
+                    variant="outline"
+                    size="lg"
+                    className="w-full sm:w-auto"
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-2" />
+                    Previous
+                  </Button>
 
-                <div className="flex space-x-3">
-                  {userAnswer !== undefined && !showExplanation && (
-                    <button
-                      onClick={handleCheckAnswer}
-                      className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
-                    >
-                      Check Answer
-                    </button>
-                  )}
-                  
-                  {currentQuestionIndex === questions.length - 1 ? (
-                    <button
-                      onClick={handleFinishExam}
-                      className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
-                    >
-                      Finish Exam
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleNext}
-                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-                    >
-                      Next
-                    </button>
-                  )}
+                  <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
+                    {userAnswer !== undefined && !showExplanation && (
+                      <Button
+                        onClick={handleCheckAnswer}
+                        size="lg"
+                        className="w-full sm:w-auto"
+                      >
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Check Answer
+                      </Button>
+                    )}
+                    
+                    {currentQuestionIndex === questions.length - 1 ? (
+                      <Button
+                        onClick={handleFinishExam}
+                        size="lg"
+                        className="w-full sm:w-auto bg-green-600 hover:bg-green-700"
+                      >
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Finish Exam
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={handleNext}
+                        size="lg"
+                        className="w-full sm:w-auto"
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4 ml-2" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Question Summary Sidebar */}
-          <div className="lg:col-span-1">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 sticky top-6 border border-gray-100 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Question Overview</h3>
-              
-              {/* Question Dots Grid */}
-              <div className="grid grid-cols-5 gap-3 mb-4">
-                {questions.map((_, index) => {
-                  const status = getQuestionStatus(index);
-                  const isActive = index === currentQuestionIndex;
-                  
-                  let dotClass = "w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium cursor-pointer transition-colors ";
-                  
-                  if (isActive) {
-                    dotClass += "ring-2 ring-blue-500 ring-offset-1 ";
-                  }
-                  
-                  switch (status) {
-                    case 'correct':
-                      dotClass += "bg-green-500 text-white";
-                      break;
-                    case 'incorrect':
-                      dotClass += "bg-red-500 text-white";
-                      break;
-                    case 'answered':
-                      dotClass += "bg-yellow-500 text-white";
-                      break;
-                    case 'unanswered':
-                      dotClass += "bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-500";
-                      break;
-                  }
-
-                  return (
-                    <button
-                      key={index}
-                      onClick={() => {
-                        // Use the session hook to navigate to question
-                        sessionActions.navigateToQuestion(index);
-                        setShowExplanation(false);
-                      }}
-                      className={dotClass}
-                      title={`Question ${index + 1} - ${status}`}
-                    >
-                      {index + 1}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Legend */}
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center">
-                  <div className="w-4 h-4 bg-green-500 rounded-full mr-2"></div>
-                  <span className="text-gray-900 dark:text-white">Correct</span>
+          <div className="xl:col-span-1">
+            <Card className="border-0 shadow-sm sticky top-6">
+              <CardHeader>
+                <CardTitle className="text-lg">Question Overview</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-5 gap-2 mb-4">
+                  {questions.map((_, index) => {
+                    const status = getQuestionStatus(index);
+                    const isCurrent = index === currentQuestionIndex;
+                    
+                    let statusClasses = "w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium border-2 ";
+                    
+                    if (isCurrent) {
+                      statusClasses += "bg-primary text-primary-foreground border-primary";
+                    } else if (status === 'correct') {
+                      statusClasses += "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border-green-300 dark:border-green-700";
+                    } else if (status === 'incorrect') {
+                      statusClasses += "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 border-red-300 dark:border-red-700";
+                    } else if (status === 'answered') {
+                      statusClasses += "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 border-yellow-300 dark:border-yellow-700";
+                    } else {
+                      statusClasses += "bg-muted text-muted-foreground border-border";
+                    }
+                    
+                    return (
+                      <button
+                        key={index}
+                        className={statusClasses}
+                        onClick={() => {
+                          // TODO: Implement question navigation
+                          console.log('Navigate to question:', index);
+                        }}
+                      >
+                        {index + 1}
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className="flex items-center">
-                  <div className="w-4 h-4 bg-red-500 rounded-full mr-2"></div>
-                  <span className="text-gray-900 dark:text-white">Incorrect</span>
-                </div>
-                <div className="flex items-center">
-                  <div className="w-4 h-4 bg-yellow-500 rounded-full mr-2"></div>
-                  <span className="text-gray-900 dark:text-white">Answered</span>
-                </div>
-                <div className="flex items-center">
-                  <div className="w-4 h-4 bg-gray-200 dark:bg-gray-600 rounded-full mr-2"></div>
-                  <span className="text-gray-900 dark:text-white">Unanswered</span>
-                </div>
-              </div>
-
-              {/* Progress Stats */}
-              <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
-                <div className="text-sm text-gray-600 dark:text-gray-300">
-                  <div className="flex justify-between mb-1">
-                    <span>Answered:</span>
-                    <span>{Object.keys(userAnswers).length}/{questions.length}</span>
+                
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Answered:</span>
+                    <span className="font-medium">{Object.keys(userAnswers).length}/{questions.length}</span>
                   </div>
-                  <div className="flex justify-between mb-1">
-                    <span>Checked:</span>
-                    <span>{Object.keys(checkedAnswers).length}/{questions.length}</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Correct:</span>
+                    <span className="font-medium text-green-600">
+                      {questions.filter((_, index) => getQuestionStatus(index) === 'correct').length}
+                    </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Progress:</span>
-                    <span>{Math.round((Object.keys(userAnswers).length / questions.length) * 100)}%</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Incorrect:</span>
+                    <span className="font-medium text-red-600">
+                      {questions.filter((_, index) => getQuestionStatus(index) === 'incorrect').length}
+                    </span>
                   </div>
                 </div>
-              </div>
-            </div>
+                
+                <Separator className="my-4" />
+                
+                <div className="space-y-2 text-xs text-muted-foreground">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-primary rounded-full"></div>
+                    <span>Current</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-green-300 dark:bg-green-700 rounded-full"></div>
+                    <span>Correct</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-red-300 dark:bg-red-700 rounded-full"></div>
+                    <span>Incorrect</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-yellow-300 dark:bg-yellow-700 rounded-full"></div>
+                    <span>Answered</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-muted rounded-full"></div>
+                    <span>Unanswered</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
+
+      {/* Pause Confirmation Modal */}
       <ConfirmationModal
         isOpen={showPauseModal}
         onClose={() => setShowPauseModal(false)}
         onConfirm={handleConfirmPause}
-        title="Pause Test"
-        message="Are you sure you want to pause this test? Your progress will be saved."
-        confirmText="Pause Test"
-        cancelText="Continue Test"
+        title="Pause Exam"
+        message="Are you sure you want to pause this exam? You can resume it later from your dashboard."
+        confirmText="Pause Exam"
+        cancelText="Continue Exam"
       />
     </div>
   );

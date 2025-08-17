@@ -305,6 +305,7 @@ export interface ParsedUserExamSession {
   id: string;
   user_id: string;
   exam_id: string;
+  exam_title?: string;
   session_name: string | null;
   selected_topics: string[];
   question_limit: number | null;

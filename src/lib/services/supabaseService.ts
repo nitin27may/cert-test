@@ -467,7 +467,20 @@ export class SupabaseExamService {
       throw new Error(`Failed to create session questions: ${questionsError.message}`);
     }
 
-    const parsedSession = this.transformSessionData(session, questionsResponse.questions);
+    // Get exam title for the session
+    const { data: examData, error: examError } = await supabase
+      .from('exams')
+      .select('title')
+      .eq('id', sessionData.exam_id)
+      .single();
+
+    if (examError) {
+      console.warn('Failed to fetch exam title:', examError.message);
+    }
+
+    const examTitle = examData?.title || 'Unknown Exam';
+
+    const parsedSession = this.transformSessionData(session, questionsResponse.questions, examTitle);
     return { session: parsedSession };
   }
 
@@ -486,6 +499,19 @@ export class SupabaseExamService {
     }
 
     console.log('Session data fetched:', { sessionId: session.id, examId: session.exam_id });
+
+    // Get exam title
+    const { data: examData, error: examError } = await supabase
+      .from('exams')
+      .select('title')
+      .eq('id', session.exam_id)
+      .single();
+
+    if (examError) {
+      console.warn('Failed to fetch exam title:', examError.message);
+    }
+
+    const examTitle = examData?.title || 'Unknown Exam';
 
     // Get session questions in order
     const { data: sessionQuestions, error: questionsError } = await supabase
@@ -541,7 +567,7 @@ export class SupabaseExamService {
       console.warn('Failed to load existing answers:', answersError.message);
     }
 
-    const parsedSession = this.transformSessionData(session, questions);
+    const parsedSession = this.transformSessionData(session, questions, examTitle);
     
     // Add existing answers to the session response
     const parsedAnswers = (existingAnswers || []).map(this.transformAnswerData);
@@ -1003,11 +1029,12 @@ export class SupabaseExamService {
     };
   }
 
-  private transformSessionData(sessionData: DbUserExamSession, questions: ParsedQuestion[]): ParsedUserExamSession {
+  private transformSessionData(sessionData: DbUserExamSession, questions: ParsedQuestion[], examTitle?: string): ParsedUserExamSession {
     return {
       ...sessionData,
       selected_topics: sessionData.selected_topics ? JSON.parse(sessionData.selected_topics) : [],
-      questions
+      questions,
+      exam_title: examTitle
     };
   }
 

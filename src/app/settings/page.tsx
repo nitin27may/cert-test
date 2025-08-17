@@ -15,7 +15,7 @@ import { useRouter } from 'next/navigation';
 
 export default function SettingsPage() {
   const { user, loading } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, setTheme } = useTheme();
   const router = useRouter();
   const [settings, setSettings] = useState({
     theme: theme,
@@ -56,12 +56,12 @@ export default function SettingsPage() {
     console.log('Saving settings:', settings);
     // Update theme if changed
     if (settings.theme !== theme) {
-      toggleTheme();
+      setTheme(settings.theme);
     }
   };
 
   const handleThemeChange = (newTheme: string) => {
-    setSettings({ ...settings, theme: newTheme as 'light' | 'dark' });
+    setSettings({ ...settings, theme: newTheme as 'light' | 'dark' | 'system' });
   };
 
   const handleNotificationChange = (key: string, value: boolean) => {
@@ -134,6 +134,12 @@ export default function SettingsPage() {
                       <div className="flex items-center">
                         <Moon className="h-4 w-4 mr-2" />
                         Dark
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="system">
+                      <div className="flex items-center">
+                        <Monitor className="h-4 w-4 mr-2" />
+                        System
                       </div>
                     </SelectItem>
                   </SelectContent>

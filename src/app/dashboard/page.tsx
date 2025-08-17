@@ -52,6 +52,7 @@ interface RecentResult {
 
 interface ActiveSession {
   id: string;
+  examId: string;
   examTitle: string;
   progress: number;
   timeSpent: number;
@@ -115,6 +116,7 @@ export default function DashboardPage() {
           .filter(session => session.status === 'in_progress' || session.status === 'paused')
           .map(session => ({
             id: session.id,
+            examId: session.exam_id, // Include exam ID for navigation
             examTitle: session.exam_title || 'Unknown Exam',
             progress: session.questions_answered && session.total_questions 
               ? Math.round((session.questions_answered / session.total_questions) * 100)
@@ -189,8 +191,8 @@ export default function DashboardPage() {
   };
 
   const handleContinueSession = (session: ActiveSession) => {
-    // Navigate to the exam practice page
-    router.push(`/exam/${session.id}/practice`);
+    // Navigate to the exam practice page with session ID
+    router.push(`/exam/${session.examId}/practice?sessionId=${session.id}`);
   };
 
   const handleViewAllResults = () => {
@@ -672,7 +674,7 @@ export default function DashboardPage() {
                                   <Target className="mr-2 h-4 w-4" />
                                   <span>Start New</span>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => router.push('/settings')}>
                                   <Settings className="mr-2 h-4 w-4" />
                                   <span>Settings</span>
                                 </DropdownMenuItem>
@@ -731,7 +733,7 @@ export default function DashboardPage() {
                   <Eye className="h-6 w-6 text-purple-600" />
                   <span className="text-sm font-medium">Review Exams</span>
                 </Button>
-                <Button variant="outline" className="h-20 flex-col space-y-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border-gray-200 dark:border-gray-600">
+                <Button variant="outline" className="h-20 flex-col space-y-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border-gray-200 dark:border-gray-600" onClick={() => router.push('/settings')}>
                   <Settings className="h-6 w-6 text-orange-600" />
                   <span className="text-sm font-medium">Settings</span>
                 </Button>
