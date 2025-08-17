@@ -13,8 +13,9 @@ import { supabaseExamService } from '@/lib/services/supabaseService';
 // GET /api/sessions/[sessionId] - Get session details
 export async function GET(
   request: NextRequest,
-  { params }: { params: { sessionId: string } }
+  { params }: { params: Promise<{ sessionId: string }> }
 ) {
+  const { sessionId } = await params;
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
@@ -26,7 +27,7 @@ export async function GET(
       );
     }
 
-    const response = await supabaseExamService.getSession(params.sessionId, userId);
+    const response = await supabaseExamService.getSession(sessionId, userId);
     return NextResponse.json(response);
   } catch (error: unknown) {
     console.error('GET /api/sessions/[sessionId] error:', error);
@@ -40,8 +41,9 @@ export async function GET(
 // PUT /api/sessions/[sessionId] - Unified session updates
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { sessionId: string } }
+  { params }: { params: Promise<{ sessionId: string }> }
 ) {
+  const { sessionId } = await params;
   try {
     const body = await request.json();
     const { action, data, userId } = body;
@@ -55,22 +57,22 @@ export async function PUT(
 
     switch (action) {
       case 'submit_answer':
-        return await handleAnswerSubmission(params.sessionId, data, userId);
+        return await handleAnswerSubmission(sessionId, data, userId);
       
       case 'update_progress':
-        return await handleProgressUpdate(params.sessionId, data, userId);
+        return await handleProgressUpdate(sessionId, data, userId);
       
       case 'flag_question':
-        return await handleQuestionFlag(params.sessionId, data, userId);
+        return await handleQuestionFlag(sessionId, data, userId);
       
       case 'pause_session':
-        return await handleSessionPause(params.sessionId, data, userId);
+        return await handleSessionPause(sessionId, data, userId);
       
       case 'resume_session':
-        return await handleSessionResume(params.sessionId, data, userId);
+        return await handleSessionResume(sessionId, data, userId);
       
       case 'complete_session':
-        return await handleSessionComplete(params.sessionId, data, userId);
+        return await handleSessionComplete(sessionId, data, userId);
       
       default:
         return NextResponse.json(
@@ -90,8 +92,9 @@ export async function PUT(
 // DELETE /api/sessions/[sessionId] - Delete session
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { sessionId: string } }
+  { params }: { params: Promise<{ sessionId: string }> }
 ) {
+  const { sessionId } = await params;
   try {
     const body = await request.json();
     const { userId } = body;
@@ -103,7 +106,7 @@ export async function DELETE(
       );
     }
 
-    await supabaseExamService.deleteSession(params.sessionId, userId);
+    await supabaseExamService.deleteSession(sessionId);
     return NextResponse.json({ message: 'Session deleted successfully' });
   } catch (error: unknown) {
     console.error('DELETE /api/sessions/[sessionId] error:', error);

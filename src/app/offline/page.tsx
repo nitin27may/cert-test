@@ -1,3 +1,5 @@
+"use client";
+
 export default function OfflinePage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
@@ -19,11 +21,11 @@ export default function OfflinePage() {
         </div>
         
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-          You're Offline
+          You&apos;re Offline
         </h1>
         
         <p className="text-gray-600 dark:text-gray-300 mb-6">
-          It looks like you've lost your internet connection. Don't worry - your exam progress is saved locally and will sync when you're back online.
+          It looks like you&apos;ve lost your internet connection. Don&apos;t worry - your exam progress is saved locally and will sync when you&apos;re back online.
         </p>
         
         <div className="space-y-3">

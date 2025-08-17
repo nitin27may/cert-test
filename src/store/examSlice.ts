@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { Exam, ExamSession, Question, ExamState } from '@/lib/types';
 import { supabaseExamService } from '@/lib/services/supabaseService';
-import { shuffleArray, validateAnswer } from '@/lib/utils';
+
 
 // Async thunks
 export const loadExam = createAsyncThunk(

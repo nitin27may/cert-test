@@ -31,7 +31,7 @@ export default function RootLayout({
       <head>
         <ThemeScript />
       </head>
-      <body className="antialiased">
+      <body className="antialiased scroll-smooth">
         <Providers>
           {children}
         </Providers>

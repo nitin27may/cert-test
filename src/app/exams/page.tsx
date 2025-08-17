@@ -8,7 +8,7 @@ import { useExamState } from '@/hooks/useExamState';
 import Header from '@/components/Header';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import { examService } from '@/lib/api/examService';
-import { storage } from '@/lib/utils';
+
 import { ParsedCertificationInfo } from '@/lib/types';
 
 // Helper function to get all exam progress from localStorage

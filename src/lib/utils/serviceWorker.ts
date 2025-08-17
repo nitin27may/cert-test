@@ -185,7 +185,7 @@ export class ServiceWorkerManager {
     }
 
     try {
-      await this.registration.sync.register(tag);
+      await (this.registration as any).sync.register(tag);
       console.log('Background sync requested:', tag);
       return true;
     } catch (error) {
@@ -223,7 +223,7 @@ export class ServiceWorkerManager {
     // Request background sync for any pending offline data
     if (this.registration && 'sync' in this.registration) {
       try {
-        await this.registration.sync.register('exam-sync');
+        await (this.registration as any).sync.register('exam-sync');
         console.log('Background sync requested after network restoration');
       } catch (error) {
         console.error('Failed to request background sync after network restoration:', error);

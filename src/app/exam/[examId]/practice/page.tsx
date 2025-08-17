@@ -779,7 +779,7 @@ export default function ExamPracticePage() {
                   const correctAnswers = currentQuestion.correct_answers;
                   
                   // Use the verification function for more robust selection detection
-                  let isSelected = verifySelectionState(currentQuestionIndex, index);
+                  const isSelected = verifySelectionState(currentQuestionIndex, index);
                   
                   const isCorrect = correctAnswers.includes(index);
                   const showResult = showExplanation;

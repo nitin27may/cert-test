@@ -338,7 +338,7 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
       });
       
       // Increment retry count for retry logic
-      updateState(prev => ({ retryCount: prev.retryCount + 1 }));
+      updateState(prev => ({ ...prev, retryCount: prev.retryCount + 1 }));
     }
   }, [updateState, setupRealtimeSync, startTimeTracking, calculateProgress]);
 
@@ -445,12 +445,12 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
 
       try {
         await submitAnswerOptimistic(questionId, userAnswer, timeSpent);
-      } catch (error) {
+      } catch (error: unknown) {
         // Increment retry count
         failedAnswersRef.current.set(questionId, {
           userAnswer,
           timeSpent,
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
           retryCount: retryCount + 1
         });
       }
@@ -471,13 +471,13 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
       for (const [questionId, { userAnswer, timeSpent }] of answersToSubmit) {
         try {
           await submitAnswerOptimistic(questionId, userAnswer, timeSpent);
-        } catch (error: any) {
+                } catch (error: unknown) {
           console.error(`Failed to submit answer for question ${questionId}:`, error);
           // Keep the answer in failed state for retry
           failedAnswersRef.current.set(questionId, { 
             userAnswer, 
             timeSpent, 
-            error: error.message, 
+            error: error instanceof Error ? error.message : String(error), 
             retryCount: 0 
           });
         }

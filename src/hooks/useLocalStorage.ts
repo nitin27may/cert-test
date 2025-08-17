@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { storage } from '@/lib/utils';
+
 
 // Hook for managing localStorage state
 export function useLocalStorage<T>(
@@ -8,8 +8,14 @@ export function useLocalStorage<T>(
 ): [T, (value: T | ((val: T) => T)) => void] {
   // State to store our value
   const [storedValue, setStoredValue] = useState<T>(() => {
+    // Check if we're in the browser
+    if (typeof window === 'undefined') {
+      return initialValue;
+    }
+    
     try {
-      return storage.get(key, initialValue);
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
     } catch (error) {
       console.error(`Error loading from localStorage key "${key}":`, error);
       return initialValue;
@@ -25,8 +31,10 @@ export function useLocalStorage<T>(
       // Save state
       setStoredValue(valueToStore);
       
-      // Save to localStorage
-      storage.set(key, valueToStore);
+      // Save to localStorage only if we're in the browser
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(key, JSON.stringify(valueToStore));
+      }
     } catch (error) {
       console.error(`Error setting localStorage key "${key}":`, error);
     }

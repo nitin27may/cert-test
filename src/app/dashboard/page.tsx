@@ -1,36 +1,43 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { useExamResults } from '@/hooks/useExamResults';
+import { useTheme } from '@/contexts/ThemeContext';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import { supabaseExamService } from '@/lib/services/supabaseService';
-import { realtimeService } from '@/lib/services/realtimeService';
-import Header from '@/components/Header';
-import { AuthGuard } from '../../components/AuthGuard';
-import { AuthService } from '../../lib/auth/authService';
-import Link from 'next/link';
-import ConfirmationModal from '@/components/ConfirmationModal';
-
-interface DashboardStats {
-  totalExams: number;
-  completedExams: number;
-  inProgressExams: number;
-  averageScore: number;
-  lastExamDate: string | null;
-  streakDays: number;
-}
-
-interface ActiveSession {
-  id: string;
-  exam_id: string;
-  examTitle: string;
-  progress: number;
-  lastActivity: string;
-  questionsAnswered: number;
-  totalQuestions: number;
-  status: string;
-}
+import { 
+  Search, 
+  Bell, 
+  Settings, 
+  User, 
+  LogOut, 
+  TrendingUp, 
+  Users,
+  Clock,
+  Target,
+  Award,
+  Calendar,
+  MoreHorizontal,
+  Eye,
+  Download,
+  Share2,
+  Plus,
+  ArrowUpRight,
+  ArrowDownRight,
+  Clock as ClockIcon,
+  BookOpen,
+  BarChart3,
+  PlayCircle
+} from 'lucide-react';
 
 interface RecentResult {
   id: string;
@@ -43,87 +50,52 @@ interface RecentResult {
   improvement?: number;
 }
 
-export default function EnhancedDashboard() {
-  const { user } = useAuth();
+interface ActiveSession {
+  id: string;
+  examTitle: string;
+  progress: number;
+  timeSpent: number;
+  status: string;
+}
+
+interface DashboardStats {
+  totalExams: number;
+  completedExams: number;
+  averageScore: number;
+  totalStudyTime: number;
+}
+
+export default function DashboardPage() {
+  const { user, loading } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const router = useRouter();
-  const [supabaseUser, setSupabaseUser] = useState<any>(null);
+  
+  const [recentResults, setRecentResults] = useState<RecentResult[]>([]);
+  const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     totalExams: 0,
     completedExams: 0,
-    inProgressExams: 0,
     averageScore: 0,
-    lastExamDate: null,
-    streakDays: 0
+    totalStudyTime: 0
   });
-  const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
-  const [recentResults, setRecentResults] = useState<RecentResult[]>([]);
-  const [availableExams, setAvailableExams] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<'online' | 'offline'>('online');
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [sessionToDelete, setSessionToDelete] = useState<ActiveSession | null>(null);
+  const [availableExams, setAvailableExams] = useState<any[]>([]);
 
-  // Get exam results analytics
-  const [resultsState, resultsActions] = useExamResults(supabaseUser?.id || '');
-
+  // Load real data from services
   useEffect(() => {
-    // Get Supabase user session
-    const loadSupabaseUser = async () => {
-      try {
-        const session = await AuthService.getSession();
-        if (session?.user) {
-          setSupabaseUser(session.user);
-        }
-      } catch (error) {
-        console.error('Error loading Supabase user:', error);
-      }
-    };
-    
-    loadSupabaseUser();
-  }, []);
-
-  // Load dashboard data
-  useEffect(() => {
-    if (!supabaseUser?.id) return;
-
     const loadDashboardData = async () => {
+      if (!user?.id) return;
+
       try {
         setIsLoading(true);
-        setError(null);
 
         // Load available exams
         const examsResponse = await supabaseExamService.getExams();
-        setAvailableExams(examsResponse.exams);
+        setAvailableExams(examsResponse.exams || []);
 
-        // Load user sessions
-        const sessionsResponse = await supabaseExamService.getUserSessions(supabaseUser.id);
-        
-        // Filter active sessions
-        const activeSessionsData = sessionsResponse.sessions
-          .filter(session => session.status === 'in_progress' || session.status === 'paused')
-          .map(session => ({
-            id: session.id,
-            exam_id: session.exam_id,
-            examTitle: session.exam_title,
-            progress: session.progress,
-            lastActivity: session.last_activity,
-            questionsAnswered: session.questions_answered,
-            totalQuestions: session.total_questions,
-            status: session.status,
-          }));
-        
-        console.log('Sessions loaded:', {
-          total: sessionsResponse.sessions.length,
-          active: activeSessionsData.length,
-          sessions: sessionsResponse.sessions.map(s => ({ id: s.id, status: s.status, exam_id: s.exam_id }))
-        });
-        
-        setActiveSessions(activeSessionsData);
-
-        // Load recent results
-        const resultsResponse = await supabaseExamService.getUserResults(supabaseUser.id);
-        const recentResultsData = resultsResponse.results
+        // Load user results
+        const resultsResponse = await supabaseExamService.getUserResults(user.id);
+        const recentResultsData = (resultsResponse.results || [])
           .slice(0, 5)
           .map((result, index) => ({
             id: result.id,
@@ -132,546 +104,631 @@ export default function EnhancedDashboard() {
             score: result.score_percentage,
             completedAt: result.completed_at,
             timeSpent: result.time_spent_seconds,
-            sessionId: result.session_id, // Assuming session_id is available in the result
-            improvement: index > 0 ? result.score_percentage - resultsResponse.results[index].score_percentage : undefined
+            sessionId: result.session_id,
+            improvement: index > 0 ? result.score_percentage - resultsResponse.results[index - 1].score_percentage : undefined
           }));
-        
         setRecentResults(recentResultsData);
+
+        // Load user sessions
+        const sessionsResponse = await supabaseExamService.getUserSessions(user.id);
+        const activeSessionsData = (sessionsResponse.sessions || [])
+          .filter(session => session.status === 'in_progress' || session.status === 'paused')
+          .map(session => ({
+            id: session.id,
+            examTitle: session.exam_title || 'Unknown Exam',
+            progress: session.questions_answered && session.total_questions 
+              ? Math.round((session.questions_answered / session.total_questions) * 100)
+              : 0,
+            timeSpent: Math.round((session.progress || 0) / 60),
+            status: session.status === 'in_progress' ? 'active' : 'paused'
+          }));
+        setActiveSessions(activeSessionsData);
 
         // Calculate dashboard stats
         const stats: DashboardStats = {
-          totalExams: sessionsResponse.sessions.length,
-          completedExams: resultsResponse.results.length,
-          inProgressExams: activeSessionsData.length,
-          averageScore: resultsResponse.results.length > 0 
-            ? resultsResponse.results.reduce((sum, r) => sum + r.score_percentage, 0) / resultsResponse.results.length 
+          totalExams: availableExams.length,
+          completedExams: resultsResponse.results?.length || 0,
+          averageScore: resultsResponse.results?.length > 0 
+            ? Math.round(resultsResponse.results.reduce((sum, r) => sum + r.score_percentage, 0) / resultsResponse.results.length)
             : 0,
-          lastExamDate: resultsResponse.results.length > 0 ? resultsResponse.results[0].completed_at : null,
-          streakDays: calculateStreakDays(resultsResponse.results.map(r => r.completed_at))
+          totalStudyTime: Math.round((resultsResponse.results?.reduce((sum, r) => sum + (r.time_spent_seconds || 0), 0) || 0) / 60)
         };
-
         setDashboardStats(stats);
 
-      } catch (error: any) {
+      } catch (error) {
         console.error('Error loading dashboard data:', error);
-        setError(error.message);
       } finally {
         setIsLoading(false);
       }
     };
 
     loadDashboardData();
-  }, [supabaseUser?.id]);
+  }, [user?.id]);
 
-  // Setup real-time subscriptions
-  useEffect(() => {
-    if (!supabaseUser?.id) return;
-
-    const setupRealtimeUpdates = async () => {
-      // Monitor connection status
-      const checkConnection = () => {
-        const status = realtimeService.getConnectionStatus();
-        setConnectionStatus(status === 'OPEN' ? 'online' : 'offline');
-      };
-
-      const connectionInterval = setInterval(checkConnection, 5000);
-
-      // Subscribe to user results updates
-      await realtimeService.subscribeToUserResults(
-        supabaseUser.id,
-        (result) => {
-          setRecentResults(prev => [
-            {
-              id: result.id,
-              examId: result.exam_id,
-              examTitle: result.exam_id, // Would be fetched from exams
-              score: result.score_percentage,
-              completedAt: result.completed_at,
-              timeSpent: result.time_spent_seconds,
-              sessionId: result.session_id, // Assuming session_id is available in the result
-            },
-            ...prev.slice(0, 4)
-          ]);
-        },
-        (error) => {
-          console.error('Real-time results error:', error);
-        }
-      );
-
-      return () => {
-        clearInterval(connectionInterval);
-        realtimeService.unsubscribeAll();
-      };
-    };
-
-    setupRealtimeUpdates();
-  }, [supabaseUser?.id]);
-
-  // Calculate streak days
-  const calculateStreakDays = (completionDates: string[]): number => {
-    if (completionDates.length === 0) return 0;
-    
-    const dates = completionDates
-      .map(date => new Date(date).toDateString())
-      .sort()
-      .reverse();
-    
-    let streak = 1;
-    let currentDate = new Date(dates[0]);
-    
-    for (let i = 1; i < dates.length; i++) {
-      const nextDate = new Date(dates[i]);
-      const dayDiff = Math.floor((currentDate.getTime() - nextDate.getTime()) / (1000 * 60 * 60 * 24));
-      
-      if (dayDiff === 1) {
-        streak++;
-        currentDate = nextDate;
-      } else {
-        break;
-      }
-    }
-    
-    return streak;
+  const getScoreColor = (score: number) => {
+    if (score >= 90) return 'text-green-600 dark:text-green-400';
+    if (score >= 80) return 'text-blue-600 dark:text-blue-400';
+    if (score >= 70) return 'text-yellow-600 dark:text-yellow-400';
+    return 'text-red-600 dark:text-red-400';
   };
 
-  const handleStartExam = async (examId: string) => {
-    try {
-      router.push(`/exam/${examId}/setup`);
-    } catch (error) {
-      console.error('Error starting exam:', error);
+  const getScoreBadge = (score: number) => {
+    if (score >= 90) return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Excellent</Badge>;
+    if (score >= 80) return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">Good</Badge>;
+    if (score >= 70) return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">Pass</Badge>;
+    return <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">Fail</Badge>;
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'active': return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Active</Badge>;
+      case 'paused': return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">Paused</Badge>;
+      case 'completed': return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">Completed</Badge>;
+      default: return <Badge variant="secondary">Unknown</Badge>;
     }
   };
 
-  const handleResumeSession = (session: ActiveSession) => {
-    router.push(`/exam/${session.exam_id}/practice`);
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
-  const handleDeleteSession = (session: ActiveSession) => {
-    setSessionToDelete(session);
-    setShowDeleteModal(true);
+  const formatTime = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
   };
 
-  const confirmDeleteSession = () => {
-    if (sessionToDelete) {
-      executeDeleteSession(sessionToDelete.id);
+  const handleStartNewSession = () => {
+    router.push('/exams');
+  };
+
+  const handleContinueSession = (session: ActiveSession) => {
+    // Navigate to the exam practice page
+    router.push(`/exam/${session.id}/practice`);
+  };
+
+  const handleViewAllResults = () => {
+    router.push('/results');
+  };
+
+  const handleBrowseExams = () => {
+    router.push('/exams');
+  };
+
+  const handleReviewRecentExams = () => {
+    if (recentResults.length > 0) {
+      // Navigate to the most recent exam review
+      router.push(`/exam-review/${recentResults[0].sessionId}`);
+    } else {
+      // If no recent results, go to exams page
+      router.push('/exams');
     }
   };
 
-  const executeDeleteSession = async (sessionId: string) => {
-    try {
-      await supabaseExamService.deleteSession(sessionId);
-      setShowDeleteModal(false);
-      setSessionToDelete(null);
-      // Refresh the page to update the sessions list
-      window.location.reload();
-    } catch (error: unknown) {
-      console.error('Failed to delete session:', error);
-      setError('Failed to delete session');
-    }
-  };
-
-  const formatTime = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
-  };
-
-  const getScoreColor = (score: number): string => {
-    if (score >= 90) return 'text-green-600';
-    if (score >= 80) return 'text-blue-600';
-    if (score >= 70) return 'text-yellow-600';
-    return 'text-red-600';
-  };
-
-  const getImprovementIndicator = (improvement?: number) => {
-    if (!improvement) return null;
-    if (improvement > 0) {
-      return <span className="text-green-600 text-sm">↗ +{improvement.toFixed(1)}%</span>;
-    } else if (improvement < 0) {
-      return <span className="text-red-600 text-sm">↘ {improvement.toFixed(1)}%</span>;
-    }
-    return <span className="text-gray-600 text-sm">→ 0%</span>;
-  };
-
-  if (isLoading) {
+  if (loading || isLoading) {
     return (
-      <AuthGuard>
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-          <Header />
-          <div className="flex items-center justify-center min-h-[60vh]">
-            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="space-y-8">
+            {/* Header Skeleton */}
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-8 w-64" />
+              <div className="flex items-center space-x-4">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <Skeleton className="h-10 w-32" />
+              </div>
+            </div>
+            
+            {/* Stats Skeleton */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[...Array(4)].map((_, i) => (
+                <Card key={i} className="p-6">
+                  <div className="space-y-3">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-8 w-16" />
+                    <Skeleton className="h-4 w-32" />
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            {/* Content Skeleton */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {[...Array(2)].map((_, i) => (
+                <Card key={i} className="p-6">
+                  <Skeleton className="h-6 w-32 mb-4" />
+                  <div className="space-y-3">
+                    {[...Array(3)].map((_, j) => (
+                      <div key={j} className="flex items-center space-x-3">
+                        <Skeleton className="h-12 w-12 rounded-full" />
+                        <div className="space-y-2 flex-1">
+                          <Skeleton className="h-4 w-3/4" />
+                          <Skeleton className="h-3 w-1/2" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              ))}
+            </div>
           </div>
         </div>
-      </AuthGuard>
+      </div>
     );
   }
 
   return (
-    <AuthGuard>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-        <Header />
-        
-        {/* Connection Status */}
-        <div className={`fixed top-16 right-4 z-50 px-3 py-1 rounded-full text-sm font-medium ${
-          connectionStatus === 'online' 
-            ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' 
-            : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200'
-        }`}>
-          {connectionStatus === 'online' ? '🟢 Online' : '🔴 Offline'}
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Top Navigation Bar */}
+      <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Left side - Logo and Breadcrumb */}
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
+                  <Target className="w-5 h-5 text-white" />
+                </div>
+                <span className="text-xl font-bold text-gray-900 dark:text-white">Azure Practice Hub</span>
+              </div>
+              <Separator orientation="vertical" className="h-6" />
+              <nav className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+                <span>Dashboard</span>
+                <span>/</span>
+                <span className="text-gray-900 dark:text-white">Overview</span>
+              </nav>
+            </div>
+
+            {/* Right side - Search, Notifications, Profile */}
+            <div className="flex items-center space-x-4">
+              {/* Search */}
+              <div className="relative hidden md:block">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search exams, results..."
+                  className="pl-10 w-64 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              {/* Theme Toggle */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleTheme}
+                className="h-9 w-9"
+                aria-label="Toggle theme"
+              >
+                {theme === 'light' ? (
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                  </svg>
+                ) : (
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                )}
+              </Button>
+
+              {/* Notifications */}
+              <Button variant="ghost" size="icon" className="relative h-9 w-9">
+                <Bell className="h-5 w-5" />
+                <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full"></span>
+              </Button>
+
+              {/* Profile Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="h-9 w-9 rounded-full p-0">
+                    <Avatar className="h-9 w-9">
+                      <AvatarImage src={user?.user_metadata?.avatar_url} />
+                      <AvatarFallback className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-sm font-medium">
+                        {user?.user_metadata?.full_name?.charAt(0) || user?.email?.charAt(0) || 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">{user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}</p>
+                      <p className="text-xs leading-none text-muted-foreground">{user?.email || 'user@example.com'}</p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Log out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Welcome Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="mb-8"
+        >
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            Welcome back, {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}! 👋
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Here&apos;s what&apos;s happening with your Azure certification journey today.
+          </p>
+        </motion.div>
+
+        {/* Statistics Cards */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
+        >
+          <Card className="hover:shadow-lg transition-all duration-200 border-0 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300">Available Exams</CardTitle>
+              <Target className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">{dashboardStats.totalExams}</div>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                <span className="flex items-center">
+                  <BookOpen className="h-3 w-3 mr-1" />
+                  Ready to practice
+                </span>
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-all duration-200 border-0 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-green-700 dark:text-green-300">Completed Exams</CardTitle>
+              <Award className="h-4 w-4 text-green-600 dark:text-green-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-900 dark:text-green-100">{dashboardStats.completedExams}</div>
+              <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                <span className="flex items-center">
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  {dashboardStats.completedExams > 0 ? 'Great progress!' : 'Start your journey'}
+                </span>
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-all duration-200 border-0 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-purple-700 dark:text-purple-300">Average Score</CardTitle>
+              <BarChart3 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">{dashboardStats.averageScore}%</div>
+              <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+                <span className="flex items-center">
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  {dashboardStats.averageScore >= 70 ? 'Keep it up!' : 'Room for improvement'}
+                </span>
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-all duration-200 border-0 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-orange-700 dark:text-orange-300">Study Time</CardTitle>
+              <Clock className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">{dashboardStats.totalStudyTime}m</div>
+              <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                <span className="flex items-center">
+                  <Clock className="h-3 w-3 mr-1" />
+                  Total time invested
+                </span>
+              </p>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Recent Results */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+          >
+            <Card className="h-full border-0 shadow-lg hover:shadow-xl transition-all duration-200">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg text-gray-900 dark:text-white">Recent Results</CardTitle>
+                  <CardDescription className="text-gray-600 dark:text-gray-400">
+                    Your latest exam performance
+                  </CardDescription>
+                </div>
+                <Button variant="outline" size="sm" className="h-8" onClick={handleViewAllResults}>
+                  View All
+                  <ArrowUpRight className="ml-2 h-4 w-4" />
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {recentResults.length > 0 ? (
+                    recentResults.map((result) => (
+                      <div key={result.id} className="flex items-center space-x-4 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        <div className="flex-shrink-0">
+                          <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                            result.score >= 90 ? 'bg-green-100 dark:bg-green-900/30' :
+                            result.score >= 80 ? 'bg-blue-100 dark:bg-blue-900/30' :
+                            result.score >= 70 ? 'bg-yellow-100 dark:bg-yellow-900/30' :
+                            'bg-red-100 dark:bg-red-900/30'
+                          }`}>
+                            <span className={`text-lg font-bold ${
+                              result.score >= 90 ? 'text-green-600 dark:text-green-400' :
+                              result.score >= 80 ? 'text-blue-600 dark:text-blue-400' :
+                              result.score >= 70 ? 'text-yellow-600 dark:text-yellow-400' :
+                              'text-red-600 dark:text-red-400'
+                            }`}>
+                              {result.score}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {result.examTitle}
+                          </p>
+                          <div className="flex items-center space-x-2 mt-1">
+                            {getScoreBadge(result.score)}
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {formatDate(result.completedAt)}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {formatTime(result.timeSpent)}
+                          </span>
+                          {result.improvement && (
+                            <span className={`text-xs flex items-center ${
+                              result.improvement > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                            }`}>
+                              {result.improvement > 0 ? (
+                                <ArrowUpRight className="h-3 w-3 mr-1" />
+                              ) : (
+                                <ArrowDownRight className="h-3 w-3 mr-1" />
+                              )}
+                              {Math.abs(result.improvement)}%
+                            </span>
+                          )}
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-900/20"
+                            onClick={() => router.push(`/exam-review/${result.sessionId}`)}
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            Review
+                          </Button>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => router.push(`/exam-review/${result.sessionId}`)}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              <span>Review Exam</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => router.push(`/exams`)}>
+                              <Target className="mr-2 h-4 w-4" />
+                              <span>Take Again</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Download className="mr-2 h-4 w-4" />
+                              <span>Download</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Share2 className="mr-2 h-4 w-4" />
+                              <span>Share</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8">
+                      <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Award className="h-8 w-8 text-gray-400" />
+                      </div>
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">No results yet</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                        Complete your first exam to see your results here.
+                      </p>
+                      <Button onClick={handleBrowseExams} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
+                        <PlayCircle className="mr-2 h-4 w-4" />
+                        Start Your First Exam
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Active Sessions */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+          >
+            <Card className="h-full border-0 shadow-lg hover:shadow-xl transition-all duration-200">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg text-gray-900 dark:text-white">Active Sessions</CardTitle>
+                  <CardDescription className="text-gray-600 dark:text-gray-400">
+                    Continue where you left off
+                  </CardDescription>
+                </div>
+                <Button size="sm" className="h-8 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700" onClick={handleStartNewSession}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Session
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {activeSessions.length > 0 ? (
+                    activeSessions.map((session) => (
+                      <div key={session.id} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {session.examTitle}
+                          </h4>
+                          {getStatusBadge(session.status)}
+                        </div>
+                        
+                        <div className="space-y-3">
+                          {/* Progress Bar */}
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-500 dark:text-gray-400">Progress</span>
+                              <span className="text-gray-900 dark:text-white font-medium">{session.progress}%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                              <div 
+                                className="bg-gradient-to-r from-blue-500 to-indigo-500 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${session.progress}%` }}
+                              ></div>
+                            </div>
+                          </div>
+
+                          {/* Session Info */}
+                          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                            <span className="flex items-center">
+                              <ClockIcon className="h-3 w-3 mr-1" />
+                              {formatTime(session.timeSpent)}
+                            </span>
+                            <span className="flex items-center">
+                              <Calendar className="h-3 w-3 mr-1" />
+                              {session.status === 'active' ? 'In Progress' : 'Paused'}
+                            </span>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex space-x-2">
+                            {session.status === 'active' ? (
+                              <Button size="sm" className="flex-1 h-8 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800" onClick={() => handleContinueSession(session)}>
+                                Continue
+                              </Button>
+                            ) : (
+                              <Button size="sm" className="flex-1 h-8 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700" onClick={() => handleContinueSession(session)}>
+                                Resume
+                              </Button>
+                            )}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button size="sm" variant="outline" className="h-8 px-3">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => router.push(`/exam-review/${session.id}`)}>
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  <span>Review Progress</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => router.push(`/exams`)}>
+                                  <Target className="mr-2 h-4 w-4" />
+                                  <span>Start New</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                  <Settings className="mr-2 h-4 w-4" />
+                                  <span>Settings</span>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8">
+                      <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Target className="h-8 w-8 text-gray-400" />
+                      </div>
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">No active sessions</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                        Start a new practice session to continue your learning journey.
+                      </p>
+                      <Button onClick={handleStartNewSession} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Start New Session
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
         </div>
 
-        <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          {/* Header */}
-          <div className="px-4 py-6 sm:px-0">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                  Welcome back, {user?.user_metadata?.full_name || supabaseUser?.email?.split('@')[0] || 'Student'}!
-                </h1>
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                  Track your progress and continue your learning journey
-                </p>
+        {/* Quick Actions */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          className="mt-8"
+        >
+          <Card className="border-0 shadow-lg bg-gradient-to-r from-slate-50 to-blue-50 dark:from-slate-800 dark:to-slate-700">
+            <CardHeader>
+              <CardTitle className="text-lg text-gray-900 dark:text-white">Quick Actions</CardTitle>
+              <CardDescription className="text-gray-600 dark:text-gray-400">
+                Jump into your next learning activity
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Button variant="outline" className="h-20 flex-col space-y-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border-gray-200 dark:border-gray-600" onClick={handleBrowseExams}>
+                  <Target className="h-6 w-6 text-blue-600" />
+                  <span className="text-sm font-medium">Browse Exams</span>
+                </Button>
+                <Button variant="outline" className="h-20 flex-col space-y-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border-gray-200 dark:border-gray-600" onClick={handleViewAllResults}>
+                  <Award className="h-6 w-6 text-green-600" />
+                  <span className="text-sm font-medium">View Results</span>
+                </Button>
+                <Button variant="outline" className="h-20 flex-col space-y-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border-gray-200 dark:border-gray-600" onClick={handleReviewRecentExams}>
+                  <Eye className="h-6 w-6 text-purple-600" />
+                  <span className="text-sm font-medium">Review Exams</span>
+                </Button>
+                <Button variant="outline" className="h-20 flex-col space-y-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border-gray-200 dark:border-gray-600">
+                  <Settings className="h-6 w-6 text-orange-600" />
+                  <span className="text-sm font-medium">Settings</span>
+                </Button>
               </div>
-              
-              {/* Quick Actions */}
-              <div className="flex space-x-3">
-                <button 
-                  onClick={() => resultsActions.refreshData()}
-                  className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  🔄 Refresh
-                </button>
-                <Link
-                  href="/exams"
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors"
-                >
-                  📝 Browse Exams
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          {/* Error Display */}
-          {error && (
-            <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-md p-4">
-              <div className="flex">
-                <div className="text-red-400">⚠️</div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-red-800 dark:text-red-200">Error</h3>
-                  <p className="mt-1 text-sm text-red-700 dark:text-red-300">{error}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Stats Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg border border-gray-200 dark:border-gray-700">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="text-2xl">📊</div>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Total Exams</dt>
-                      <dd className="text-lg font-medium text-gray-900 dark:text-white">{dashboardStats.totalExams}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg border border-gray-200 dark:border-gray-700">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="text-2xl">✅</div>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Completed</dt>
-                      <dd className="text-lg font-medium text-gray-900 dark:text-white">{dashboardStats.completedExams}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg border border-gray-200 dark:border-gray-700">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="text-2xl">📈</div>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Average Score</dt>
-                      <dd className={`text-lg font-medium ${getScoreColor(dashboardStats.averageScore)} dark:text-white`}>
-                        {dashboardStats.averageScore.toFixed(1)}%
-                      </dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg border border-gray-200 dark:border-gray-700">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="text-2xl">🔥</div>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Study Streak</dt>
-                      <dd className="text-lg font-medium text-gray-900 dark:text-white">{dashboardStats.streakDays} days</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Active Sessions */}
-            <div className="lg:col-span-2">
-              <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700">
-                <div className="px-4 py-5 sm:p-6">
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                    Active Sessions {activeSessions.length > 0 && `(${activeSessions.length})`}
-                  </h3>
-                  
-                  {activeSessions.length === 0 ? (
-                    <div className="text-center py-8">
-                      <div className="text-4xl mb-4">📝</div>
-                      <p className="text-gray-500 dark:text-gray-400 mb-4">No active exam sessions</p>
-                      <button
-                        onClick={() => router.push('/exams')}
-                        className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors"
-                      >
-                        Start New Exam
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {activeSessions.map((session) => (
-                        <div key={session.id} className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-1">
-                                {session.examTitle || `Exam ${session.exam_id}`}
-                              </h4>
-                              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                                {session.examTitle || `Exam ${session.exam_id}`}
-                              </p>
-                              <div className="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400">
-                                <span>Question {session.questionsAnswered + 1} of {session.totalQuestions}</span>
-                                <span>•</span>
-                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                  session.status === 'in_progress' 
-                                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-                                    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                                }`}>
-                                  {session.status === 'in_progress' ? 'In Progress' : 'Paused'}
-                                </span>
-                                <span>•</span>
-                                <span>{formatTime(session.questionsAnswered * 10)}</span>
-                              </div>
-                              <div className="mt-2">
-                                <div className="flex items-center">
-                                  <div className="flex-1 bg-gray-200 dark:bg-gray-600 rounded-full h-2 mr-2">
-                                    <div 
-                                      className="h-2 bg-blue-600 dark:bg-blue-500 rounded-full transition-all duration-300"
-                                      style={{ width: `${session.progress}%` }}
-                                    ></div>
-                                  </div>
-                                  <span className="ml-2 text-sm text-gray-900 dark:text-white">{session.progress.toFixed(1)}%</span>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className="ml-4 flex space-x-2">
-                              <button
-                                onClick={() => handleResumeSession(session)}
-                                className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-green-600 hover:bg-green-700 transition-colors"
-                              >
-                                {session.status === 'in_progress' ? 'Continue' : 'Resume'}
-                              </button>
-                              <button
-                                onClick={() => handleDeleteSession(session)}
-                                className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-red-600 hover:bg-red-700 transition-colors"
-                                title="Delete this session"
-                              >
-                                🗑️
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Available Exams */}
-              <div className="mt-8 bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700">
-                <div className="px-4 py-5 sm:p-6">
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Available Exams</h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {availableExams.slice(0, 4).map((exam) => (
-                      <div key={exam.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-blue-300 transition-colors">
-                        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">{exam.title}</h4>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{exam.total_questions} questions</p>
-                        <button
-                          onClick={() => handleStartExam(exam.id)}
-                          className="w-full inline-flex justify-center items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 transition-colors"
-                        >
-                          Start Exam
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {availableExams.length > 4 && (
-                    <div className="mt-4 text-center">
-                      <Link
-                        href="/exams"
-                        className="text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
-                      >
-                        View all {availableExams.length} exams →
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Results & Analytics */}
-            <div className="space-y-8">
-              {/* Recent Results */}
-              <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700">
-                <div className="px-4 py-5 sm:p-6">
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Recent Results</h3>
-                  
-                  {recentResults.length === 0 ? (
-                    <div className="text-center py-4">
-                      <p className="text-gray-500 dark:text-gray-400">No results yet</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {recentResults.map((result) => (
-                        <div key={result.id} className="flex items-center justify-between py-2">
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                              {result.examTitle}
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {new Date(result.completedAt).toLocaleDateString()} • {formatTime(result.timeSpent)}
-                            </p>
-                          </div>
-                          <div className="flex items-center space-x-3">
-                            <p className={`text-sm font-medium ${getScoreColor(result.score)} dark:text-white`}>
-                              {result.score.toFixed(1)}%
-                            </p>
-                            {getImprovementIndicator(result.improvement)}
-                            <button
-                              onClick={() => router.push(`/exam-review/${result.sessionId}`)}
-                              className="px-3 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-md hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
-                              title="Review this exam"
-                            >
-                              Review
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {recentResults.length > 0 && (
-                    <div className="mt-4">
-                      <Link
-                        href="/results"
-                        className="text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
-                      >
-                        View all results →
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Performance Insights */}
-              <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700">
-                <div className="px-4 py-5 sm:p-6">
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Performance Insights</h3>
-                  
-                  {resultsState.analytics.achievements.length > 0 && (
-                    <div className="mb-4">
-                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Latest Achievement</h4>
-                      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-md p-3">
-                        <div className="flex items-center">
-                          <span className="text-lg mr-2">{resultsState.analytics.achievements[0].icon}</span>
-                          <div>
-                            <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                              {resultsState.analytics.achievements[0].title}
-                            </p>
-                            <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                              {resultsState.analytics.achievements[0].description}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {resultsState.analytics.recommendations.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Recommendation</h4>
-                      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md p-3">
-                        <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                          {resultsState.analytics.recommendations[0].title}
-                        </p>
-                        <p className="text-sm text-blue-700 dark:text-blue-300">
-                          {resultsState.analytics.recommendations[0].description}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {resultsState.analytics.achievements.length === 0 && resultsState.analytics.recommendations.length === 0 && (
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">Complete more exams to see insights</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </main>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
-
-      {/* Delete Session Confirmation Modal */}
-      <ConfirmationModal
-        isOpen={showDeleteModal}
-        onClose={() => {
-          setShowDeleteModal(false);
-          setSessionToDelete(null);
-        }}
-        onConfirm={confirmDeleteSession}
-        title="Delete Session"
-        message={`Are you sure you want to delete the session for ${sessionToDelete?.examTitle}? This action cannot be undone. All progress and answers will be permanently lost.`}
-        confirmText="Delete Session"
-        cancelText="Cancel"
-        type="danger"
-        icon={
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-        }
-      />
-    </AuthGuard>
+    </div>
   );
 }

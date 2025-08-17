@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseExamService } from '@/lib/services/supabaseService';
-import { createClient } from '@/lib/supabase/server';
+
 
 // Rate limiting map (in production, use Redis or similar)
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();

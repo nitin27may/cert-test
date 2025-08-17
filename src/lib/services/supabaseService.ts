@@ -392,6 +392,11 @@ export class SupabaseExamService {
         total_questions,
         current_question_index,
         time_spent_seconds,
+        start_time,
+        end_time,
+        questions_answered,
+        correct_answers,
+        score,
         created_at,
         updated_at,
         last_activity

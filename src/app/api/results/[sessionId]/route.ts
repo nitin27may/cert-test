@@ -9,8 +9,9 @@ import { supabaseExamService } from '@/lib/services/supabaseService';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { sessionId: string } }
+  { params }: { params: Promise<{ sessionId: string }> }
 ) {
+  const { sessionId } = await params;
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
@@ -21,8 +22,6 @@ export async function GET(
         { status: 400 }
       );
     }
-
-    const sessionId = params.sessionId;
 
     // Get detailed session information including questions and answers
     const sessionDetails = await supabaseExamService.getSessionDetails(sessionId, userId);

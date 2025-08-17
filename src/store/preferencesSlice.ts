@@ -1,6 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { UserPreferences } from '@/lib/types';
-import { storage } from '@/lib/utils';
 
 // Initial state
 const initialState: UserPreferences = {
@@ -12,13 +11,25 @@ const initialState: UserPreferences = {
 
 // Load preferences from localStorage
 function loadPreferences(): UserPreferences {
-  const saved = storage.get('azure_exam_user_preferences', initialState);
-  return { ...initialState, ...saved };
+  try {
+    const saved = localStorage.getItem('azure_exam_user_preferences');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return { ...initialState, ...parsed };
+    }
+  } catch (error) {
+    console.error('Error loading preferences from localStorage:', error);
+  }
+  return initialState;
 }
 
 // Save preferences to localStorage
 function savePreferences(preferences: UserPreferences) {
-  storage.set('azure_exam_user_preferences', preferences);
+  try {
+    localStorage.setItem('azure_exam_user_preferences', JSON.stringify(preferences));
+  } catch (error) {
+    console.error('Error saving preferences to localStorage:', error);
+  }
 }
 
 // Preferences slice
@@ -53,7 +64,11 @@ const preferencesSlice = createSlice({
 
     resetPreferences: (state) => {
       Object.assign(state, initialState);
-      storage.remove('azure_exam_user_preferences');
+      try {
+        localStorage.removeItem('azure_exam_user_preferences');
+      } catch (error) {
+        console.error('Error removing preferences from localStorage:', error);
+      }
     },
   },
 });
