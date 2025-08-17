@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { ParsedQuestion } from '@/lib/types';
 import Header from '@/components/Header';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -16,6 +16,10 @@ export default function ExamPracticePage() {
   const examId = params.examId as string;
   const { user } = useAuth();
   const [sessionState, sessionActions] = useOptimizedExamSession();
+  
+  // Check if session ID is passed in URL (from setup page)
+  const searchParams = useSearchParams();
+  const sessionIdFromUrl = searchParams.get('sessionId');
 
   const [userAnswers, setUserAnswers] = useState<Record<number, number | number[]>>({});
   const [showExplanation, setShowExplanation] = useState(false);
@@ -25,8 +29,8 @@ export default function ExamPracticePage() {
   const bootCompletedRef = useRef(false);
 
   const questions: ParsedQuestion[] = useMemo(() => sessionState.session?.questions || [], [sessionState.session]);
-  const currentQuestionIndex = sessionState.currentQuestionIndex;
-  const currentQuestion: ParsedQuestion | undefined = sessionState.currentQuestion || questions[currentQuestionIndex];
+  const currentQuestionIndex = sessionState.currentQuestionIndex || 0;
+  const currentQuestion: ParsedQuestion | undefined = sessionState.currentQuestion || questions[currentQuestionIndex] || questions[0];
   const examTitle = useMemo(() => sessionState.session?.exam_id || examId, [sessionState.session, examId]);
 
   // Calculate time remaining based on database time spent
@@ -63,6 +67,15 @@ export default function ExamPracticePage() {
     const boot = async () => {
       setIsBooting(true);
       try {
+        // If session ID is passed in URL, load that session directly
+        if (sessionIdFromUrl) {
+          console.log('Session ID from URL, loading session directly:', sessionIdFromUrl);
+          await sessionActions.loadSession(sessionIdFromUrl, user.id);
+          console.log('Session loaded from URL');
+          bootCompletedRef.current = true;
+          return;
+        }
+        
         // Try to find an existing in-progress or paused session for this exam
         const { sessions } = await supabaseExamService.getUserSessions(user.id);
         const existing = sessions.find(s => s.exam_id === examId && (s.status === 'in_progress' || s.status === 'paused'));
@@ -77,37 +90,26 @@ export default function ExamPracticePage() {
           setTimeout(() => {
             console.log('Session state after loading:', {
               session: sessionState.session,
+              sessionQuestions: sessionState.session?.questions?.length || 0,
               currentQuestion: sessionState.currentQuestion,
               currentQuestionIndex: sessionState.currentQuestionIndex,
-              answers: sessionState.answers?.size || 0
+              answers: sessionState.answers?.size || 0,
+              questionsArray: questions.length,
+              currentQuestionFromQuestions: questions[sessionState.currentQuestionIndex || 0]
             });
           }, 1000);
         } else {
-          // Create new session with default config
-          console.log('No existing session, creating new one');
-          await sessionActions.createSession(user.id, {
-            exam_id: examId,
-            selected_topics: [], // Will be set by the setup page
-            question_limit: 20 // Default question limit
-          } as any);
-          console.log('Created new session for exam:', examId);
+          // No existing session found - redirect to setup page
+          console.log('No existing session found, redirecting to setup');
+          router.push(`/exam/${examId}/setup`);
+          return;
         }
         bootCompletedRef.current = true;
         console.log('Boot completed successfully');
       } catch (error) {
         console.error('Failed to boot session:', error);
-        // Fallback: try to create session anyway
-        try {
-          await sessionActions.createSession(user.id, {
-            exam_id: examId,
-            selected_topics: [],
-            question_limit: 20
-          } as any);
-          bootCompletedRef.current = true;
-          console.log('Fallback session creation succeeded');
-        } catch (fallbackError) {
-          console.error('Fallback session creation failed:', fallbackError);
-        }
+        // If there's an error, redirect to setup page
+        router.push(`/exam/${examId}/setup`);
       } finally {
         setIsBooting(false);
       }
@@ -201,7 +203,8 @@ export default function ExamPracticePage() {
     
     if (question.type === 'multiple') {
       // Handle multiple selection
-      const currentAnswers = userAnswers[currentQuestionIndex] as number[] || [];
+      const currentAnswer = userAnswers[currentQuestionIndex];
+      const currentAnswers = Array.isArray(currentAnswer) ? currentAnswer : [];
       const isSelected = currentAnswers.includes(answerIndex);
       
       if (isSelected) {
@@ -335,11 +338,100 @@ export default function ExamPracticePage() {
     }
   };
 
-  if (sessionState.isLoading || !sessionState.session || !currentQuestion || isBooting) {
+  // Debug logging
+  console.log('Session state debug:', {
+    isLoading: sessionState.isLoading,
+    hasSession: !!sessionState.session,
+    hasCurrentQuestion: !!currentQuestion,
+    isBooting,
+    sessionId: sessionState.session?.id,
+    sessionStatus: sessionState.session?.status,
+    questionsCount: sessionState.session?.questions?.length || 0,
+    currentQuestionIndex: sessionState.currentQuestionIndex,
+    error: sessionState.error,
+    // Add detailed debugging for currentQuestion logic
+    sessionStateCurrentQuestion: sessionState.currentQuestion,
+    questionsArray: questions,
+    questionsArrayLength: questions.length,
+    questionsAtIndex: questions[sessionState.currentQuestionIndex],
+    currentQuestionFallback: questions[sessionState.currentQuestionIndex]
+  });
+
+  // Check if session has questions, if not redirect to setup
+  useEffect(() => {
+    console.log('Session state changed:', {
+      hasSession: !!sessionState.session,
+      sessionId: sessionState.session?.id,
+      sessionQuestionsCount: sessionState.session?.questions?.length || 0,
+      sessionStatus: sessionState.session?.status,
+      isLoading: sessionState.isLoading,
+      isBooting,
+      questionsArrayLength: questions.length,
+      currentQuestion: !!currentQuestion,
+      questionsArray: questions.slice(0, 3).map(q => ({ id: q.id, question: q.question_text?.substring(0, 50) })) // Show first 3 questions
+    });
+    
+    // Don't redirect if we're still loading or booting
+    if (sessionState.isLoading || isBooting) {
+      console.log('Still loading or booting, not redirecting');
+      return;
+    }
+    
+    // Only redirect if we have a session but no questions
+    if (sessionState.session && questions.length === 0) {
+      console.log('Session loaded but questions array is empty, redirecting to setup');
+      console.log('Debug info:', {
+        session: sessionState.session,
+        questions: questions,
+        questionsLength: questions.length,
+        sessionQuestions: sessionState.session.questions
+      });
+      router.push(`/exam/${examId}/setup`);
+    }
+  }, [sessionState.session, sessionState.isLoading, router, examId, isBooting, questions.length, currentQuestion]);
+
+  if (sessionState.session && (!sessionState.session.questions || sessionState.session.questions.length === 0)) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-lg text-gray-900 dark:text-white">
-          {isBooting ? 'Starting exam session...' : 'Loading session...'}
+        <div className="text-center">
+          <div className="text-lg text-gray-900 dark:text-white mb-4">
+            Redirecting to exam setup...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Debug the loading condition
+  const loadingCondition = sessionState.isLoading || !sessionState.session || !currentQuestion || isBooting;
+  console.log('Loading condition debug:', {
+    isLoading: sessionState.isLoading,
+    hasSession: !!sessionState.session,
+    hasCurrentQuestion: !!currentQuestion,
+    isBooting,
+    loadingCondition,
+    sessionQuestionsCount: sessionState.session?.questions?.length || 0,
+    currentQuestionIndex,
+    questionsArrayLength: questions.length
+  });
+
+  if (loadingCondition) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-lg text-gray-900 dark:text-white mb-4">
+            {isBooting ? 'Starting exam session...' : 'Loading session...'}
+          </div>
+          <div className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
+            <div>Loading: {sessionState.isLoading ? 'Yes' : 'No'}</div>
+            <div>Session: {sessionState.session ? 'Loaded' : 'Not Loaded'}</div>
+            <div>Current Question: {currentQuestion ? 'Loaded' : 'Not Loaded'}</div>
+            <div>Booting: {isBooting ? 'Yes' : 'No'}</div>
+            <div>Questions Count: {sessionState.session?.questions?.length || 0}</div>
+            <div>Questions Array: {questions.length}</div>
+            <div>Current Question Index: {currentQuestionIndex}</div>
+            {sessionState.error && <div className="text-red-500">Error: {sessionState.error}</div>}
+          </div>
         </div>
       </div>
     );

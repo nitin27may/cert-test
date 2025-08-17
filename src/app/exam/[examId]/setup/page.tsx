@@ -94,8 +94,8 @@ export default function ExamSetupPage() {
 
       console.log('Session created successfully:', sessionResponse.session.id);
       
-      // Navigate directly to practice page - it will load the session from the database
-      router.push(`/exam/${examId}/practice`);
+      // Navigate to practice page with session ID to avoid race condition
+      router.push(`/exam/${examId}/practice?sessionId=${sessionResponse.session.id}`);
       
     } catch (error) {
       console.error('Failed to create session:', error);

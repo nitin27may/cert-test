@@ -313,6 +313,21 @@ export class SupabaseExamService {
       shuffle?: boolean;
     } = {}
   ): Promise<ExamQuestionsResponse> {
+    console.log('getExamQuestions called with:', { examId, options });
+    
+    // First, let's check if there are any questions at all for this exam
+    const { data: allQuestions, error: allQuestionsError } = await supabase
+      .from('questions')
+      .select('id, topic_id, is_active')
+      .eq('exam_id', examId);
+    
+    console.log('All questions for exam:', {
+      totalQuestions: allQuestions?.length || 0,
+      activeQuestions: allQuestions?.filter(q => q.is_active)?.length || 0,
+      topics: allQuestions?.map(q => q.topic_id).filter(Boolean),
+      error: allQuestionsError
+    });
+    
     let query = supabase
       .from('questions')
       .select('*')
@@ -321,7 +336,11 @@ export class SupabaseExamService {
 
     if (options.topicIds && options.topicIds.length > 0) {
       query = query.in('topic_id', options.topicIds);
+      console.log('Filtering by topics:', options.topicIds);
+    } else {
+      console.log('No topics specified, fetching all questions for exam');
     }
+    // If no topics are specified, fetch all questions for the exam
 
     if (options.difficulty) {
       query = query.eq('difficulty', options.difficulty);
@@ -336,6 +355,12 @@ export class SupabaseExamService {
     if (error) {
       throw new Error(`Failed to fetch questions: ${error.message}`);
     }
+
+    console.log('Query result:', {
+      dataCount: data?.length || 0,
+      count,
+      hasError: !!error
+    });
 
     let questions = (data || []).map(this.transformQuestionData);
 
@@ -354,11 +379,22 @@ export class SupabaseExamService {
   // =====================
 
   async createSession(userId: string, sessionData: CreateSessionRequest): Promise<UserSessionResponse> {
+    console.log('Creating session with data:', {
+      examId: sessionData.exam_id,
+      selectedTopics: sessionData.selected_topics,
+      questionLimit: sessionData.question_limit
+    });
+
     // Get exam questions based on selected topics
     const questionsResponse = await this.getExamQuestions(sessionData.exam_id, {
       topicIds: sessionData.selected_topics,
       limit: sessionData.question_limit,
       shuffle: true
+    });
+
+    console.log('Questions response:', {
+      questionsCount: questionsResponse.questions.length,
+      totalCount: questionsResponse.total_count
     });
 
     const { data: session, error: sessionError } = await supabase
@@ -398,6 +434,8 @@ export class SupabaseExamService {
   }
 
   async getSession(sessionId: string, userId: string): Promise<UserSessionResponse> {
+    console.log('getSession called with:', { sessionId, userId });
+    
     const { data: session, error: sessionError } = await supabase
       .from('user_exam_sessions')
       .select('*')
@@ -409,13 +447,12 @@ export class SupabaseExamService {
       throw new Error(`Failed to fetch session: ${sessionError.message}`);
     }
 
+    console.log('Session data fetched:', { sessionId: session.id, examId: session.exam_id });
+
     // Get session questions in order
     const { data: sessionQuestions, error: questionsError } = await supabase
       .from('session_questions')
-      .select(`
-        question_order,
-        questions:questions(*)
-      `)
+      .select('question_order, question_id')
       .eq('session_id', sessionId)
       .order('question_order');
 
@@ -423,13 +460,37 @@ export class SupabaseExamService {
       throw new Error(`Failed to fetch session questions: ${questionsError.message}`);
     }
 
-    const questions = (sessionQuestions || [])
-      .flatMap(sq => {
-        if (Array.isArray(sq.questions)) {
-          return sq.questions.map(q => this.transformQuestionData(q)).filter(Boolean);
-        }
-        return [];
-      });
+    console.log('Session questions fetched:', {
+      sessionQuestionsCount: sessionQuestions?.length || 0,
+      questionIds: sessionQuestions?.map(sq => sq.question_id) || []
+    });
+
+    // Fetch questions separately using the question IDs
+    let questions: ParsedQuestion[] = [];
+    if (sessionQuestions && sessionQuestions.length > 0) {
+      const questionIds = sessionQuestions.map(sq => sq.question_id);
+      const { data: questionData, error: questionDataError } = await supabase
+        .from('questions')
+        .select('*')
+        .in('id', questionIds)
+        .eq('is_active', true);
+
+      if (questionDataError) {
+        throw new Error(`Failed to fetch questions: ${questionDataError.message}`);
+      }
+
+      // Map questions back to their original order
+      const questionMap = new Map(questionData?.map(q => [q.id, q]) || []);
+      questions = sessionQuestions
+        .map(sq => questionMap.get(sq.question_id))
+        .filter(Boolean)
+        .map(q => this.transformQuestionData(q));
+    }
+
+    console.log('Questions processed:', {
+      questionsCount: questions.length,
+      questionIds: questions.map(q => q.id)
+    });
 
     const parsedSession = this.transformSessionData(session, questions);
     return { session: parsedSession };
@@ -449,8 +510,7 @@ export class SupabaseExamService {
         questions_answered,
         correct_answers,
         score,
-        time_spent_seconds,
-        exams:exams(title)
+        time_spent_seconds
       `)
       .eq('user_id', userId)
       .order('last_activity', { ascending: false });
@@ -459,20 +519,44 @@ export class SupabaseExamService {
       throw new Error(`Failed to fetch user sessions: ${error.message}`);
     }
 
-    const sessions = (data || []).map(session => ({
-      id: session.id,
-      exam_id: session.exam_id,
-      exam_title: Array.isArray(session.exams) && session.exams.length > 0 ? session.exams[0].title : 'Unknown Exam',
-      status: session.status as SessionStatus,
-      session_name: session.session_name,
-      current_question_index: session.current_question_index || 0,
-      progress: session.total_questions > 0 ? (session.questions_answered / session.total_questions) * 100 : 0,
-      score: session.score,
-      last_activity: session.last_activity,
-      total_questions: session.total_questions,
-      questions_answered: session.questions_answered,
-      time_spent_seconds: session.time_spent_seconds || 0
-    }));
+    console.log('Raw session data:', data);
+    
+    // Fetch exam titles separately since the join isn't working properly
+    const examIds = [...new Set((data || []).map(session => session.exam_id))];
+    const { data: examTitles, error: examError } = await supabase
+      .from('exams')
+      .select('id, title')
+      .in('id', examIds);
+    
+    const examTitleMap = new Map(examTitles?.map(exam => [exam.id, exam.title]) || []);
+    
+    console.log('Exam titles fetched:', { examIds, examTitles, examError });
+    
+    const sessions = (data || []).map(session => {
+      const examTitle = examTitleMap.get(session.exam_id) || 'Unknown Exam';
+      
+      console.log('Processing session:', {
+        id: session.id,
+        exam_id: session.exam_id,
+        examTitle,
+        total_questions: session.total_questions
+      });
+      
+      return {
+        id: session.id,
+        exam_id: session.exam_id,
+        exam_title: examTitle,
+        status: session.status as SessionStatus,
+        session_name: session.session_name,
+        current_question_index: session.current_question_index || 0,
+        progress: session.total_questions > 0 ? (session.questions_answered / session.total_questions) * 100 : 0,
+        score: session.score,
+        last_activity: session.last_activity,
+        total_questions: session.total_questions,
+        questions_answered: session.questions_answered,
+        time_spent_seconds: session.time_spent_seconds || 0
+      };
+    });
 
     return { sessions };
   }
@@ -670,8 +754,7 @@ export class SupabaseExamService {
         score_percentage,
         pass_status,
         completed_at,
-        time_spent_seconds,
-        exams:exams(title)
+        time_spent_seconds
       `)
       .eq('user_id', userId)
       .order('completed_at', { ascending: false });
@@ -680,10 +763,19 @@ export class SupabaseExamService {
       throw new Error(`Failed to fetch user results: ${error.message}`);
     }
 
+    // Fetch exam titles separately
+    const examIds = [...new Set((data || []).map(result => result.exam_id))];
+    const { data: examTitles, error: examError } = await supabase
+      .from('exams')
+      .select('id, title')
+      .in('id', examIds);
+    
+    const examTitleMap = new Map(examTitles?.map(exam => [exam.id, exam.title]) || []);
+
     const results = (data || []).map(result => ({
       id: result.id,
       exam_id: result.exam_id,
-      exam_title: Array.isArray(result.exams) && result.exams.length > 0 ? result.exams[0].title : 'Unknown Exam',
+      exam_title: examTitleMap.get(result.exam_id) || 'Unknown Exam',
       score_percentage: result.score_percentage,
       pass_status: result.pass_status,
       completed_at: result.completed_at,

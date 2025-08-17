@@ -213,6 +213,7 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
         }
       });
 
+      console.log('Real-time sync setup completed successfully');
       updateState({ syncStatus: 'synced' });
 
     } catch (error: any) {
@@ -248,6 +249,12 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
       // Setup real-time sync immediately after session creation
       await setupRealtimeSync(response.session.id, userId);
 
+      console.log('Session created successfully, updating state:', {
+        sessionId: response.session.id,
+        questionsCount: response.session.questions?.length || 0,
+        firstQuestion: response.session.questions?.[0]?.id
+      });
+
       updateState({
         session: response.session,
         currentQuestion: response.session.questions?.[0] || null,
@@ -256,6 +263,8 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
         isLoading: false,
         syncStatus: 'synced'
       } as Partial<OptimizedExamSessionState>);
+
+      console.log('State updated after session creation');
 
       // Start time tracking
       startTimeTracking();
@@ -284,6 +293,13 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
       // Setup real-time sync for existing session
       await setupRealtimeSync(sessionId, userId);
 
+      console.log('Session loaded successfully, updating state:', {
+        sessionId: response.session.id,
+        questionsCount: response.session.questions?.length || 0,
+        currentQuestionIndex: response.session.current_question_index,
+        currentQuestion: response.session.questions?.[response.session.current_question_index]?.id
+      });
+
       updateState({
         session: response.session,
         currentQuestion: response.session.questions?.[response.session.current_question_index] || null,
@@ -293,6 +309,8 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
         isLoading: false,
         syncStatus: 'synced'
       } as Partial<OptimizedExamSessionState>);
+
+      console.log('State updated after session loading');
 
       // Resume time tracking if session is in progress
       if (response.session.status === 'in_progress') {
