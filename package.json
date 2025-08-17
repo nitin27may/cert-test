@@ -6,7 +6,9 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "migrate:exam-data": "tsx scripts/migrate-exam-data.ts",
+    "setup:db": "npx supabase db reset && npx supabase db push && npm run migrate:exam-data"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
@@ -34,6 +36,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.4.6",
     "tailwindcss": "^4.1.12",
+    "tsx": "^4.7.0",
     "typescript": "^5"
   }
 }
