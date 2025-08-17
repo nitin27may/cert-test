@@ -426,6 +426,7 @@ export interface ExamQuestionsResponse {
 
 export interface UserSessionResponse {
   session: ParsedUserExamSession;
+  answers?: ParsedUserAnswer[];
 }
 
 export interface UserSessionsResponse {

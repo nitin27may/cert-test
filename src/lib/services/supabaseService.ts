@@ -492,8 +492,26 @@ export class SupabaseExamService {
       questionIds: questions.map(q => q.id)
     });
 
+    // Load existing answers for this session
+    const { data: existingAnswers, error: answersError } = await supabase
+      .from('user_answers')
+      .select('*')
+      .eq('session_id', sessionId)
+      .order('answered_at');
+
+    if (answersError) {
+      console.warn('Failed to load existing answers:', answersError.message);
+    }
+
     const parsedSession = this.transformSessionData(session, questions);
-    return { session: parsedSession };
+    
+    // Add existing answers to the session response
+    const parsedAnswers = (existingAnswers || []).map(this.transformAnswerData);
+    
+    return { 
+      session: parsedSession,
+      answers: parsedAnswers
+    };
   }
 
   async getUserSessions(userId: string): Promise<UserSessionsResponse> {
@@ -613,6 +631,14 @@ export class SupabaseExamService {
   // =====================
 
   async submitAnswer(sessionId: string, answerData: SubmitAnswerRequest): Promise<ParsedUserAnswer> {
+    // Check if answer already exists to prevent conflicts
+    const { data: existingAnswer } = await supabase
+      .from('user_answers')
+      .select('*')
+      .eq('session_id', sessionId)
+      .eq('question_id', answerData.question_id)
+      .single();
+
     // Get the correct answer for validation
     const { data: question, error: questionError } = await supabase
       .from('questions')
@@ -627,22 +653,76 @@ export class SupabaseExamService {
     const correctAnswers: number[] = JSON.parse(question.correct_answers);
     const isCorrect = this.compareAnswers(answerData.user_answer, correctAnswers);
 
-    // Upsert user answer
-    const { data: answer, error: answerError } = await supabase
-      .from('user_answers')
-      .upsert({
-        session_id: sessionId,
-        question_id: answerData.question_id,
-        user_answer: JSON.stringify(answerData.user_answer),
-        is_correct: isCorrect,
-        is_flagged: answerData.is_flagged || false,
-        time_spent_seconds: answerData.time_spent_seconds || 0
-      })
-      .select()
-      .single();
+    const answerPayload = {
+      session_id: sessionId,
+      question_id: answerData.question_id,
+      user_answer: JSON.stringify(answerData.user_answer),
+      is_correct: isCorrect,
+      is_flagged: answerData.is_flagged || false,
+      time_spent_seconds: answerData.time_spent_seconds || 0
+    };
 
-    if (answerError) {
-      throw new Error(`Failed to submit answer: ${answerError.message}`);
+    let answer;
+    
+    if (existingAnswer) {
+      // Update existing answer
+      const { data: updatedAnswer, error: updateError } = await supabase
+        .from('user_answers')
+        .update({
+          ...answerPayload,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingAnswer.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        throw new Error(`Failed to update answer: ${updateError.message}`);
+      }
+      answer = updatedAnswer;
+    } else {
+      // Insert new answer
+      const { data: insertedAnswer, error: insertError } = await supabase
+        .from('user_answers')
+        .insert(answerPayload)
+        .select()
+        .single();
+
+      if (insertError) {
+        // If it's a duplicate key error (race condition), try to fetch the existing answer
+        if (insertError.message.includes('duplicate key value violates unique constraint')) {
+          const { data: raceAnswer } = await supabase
+            .from('user_answers')
+            .select('*')
+            .eq('session_id', sessionId)
+            .eq('question_id', answerData.question_id)
+            .single();
+          
+          if (raceAnswer) {
+            // Found the answer created by the race condition, update it instead
+            const { data: updatedAnswer, error: raceUpdateError } = await supabase
+              .from('user_answers')
+              .update({
+                ...answerPayload,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', raceAnswer.id)
+              .select()
+              .single();
+
+            if (raceUpdateError) {
+              throw new Error(`Failed to update answer after race condition: ${raceUpdateError.message}`);
+            }
+            answer = updatedAnswer;
+          } else {
+            throw new Error(`Failed to handle race condition: ${insertError.message}`);
+          }
+        } else {
+          throw new Error(`Failed to insert answer: ${insertError.message}`);
+        }
+      } else {
+        answer = insertedAnswer;
+      }
     }
 
     // Update session statistics

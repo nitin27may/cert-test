@@ -58,6 +58,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(response);
   } catch (error: unknown) {
     console.error('POST /api/answers error:', error);
+    
+    // Check for specific error types
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    if (errorMessage.includes('duplicate key value violates unique constraint')) {
+      return NextResponse.json(
+        { error: 'Answer already exists for this question' },
+        { status: 409 }
+      );
+    }
+    
     return NextResponse.json(
       { error: 'Failed to submit answer' },
       { status: 500 }
@@ -88,6 +99,17 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json(response);
   } catch (error: unknown) {
     console.error('PUT /api/answers error:', error);
+    
+    // Check for specific error types
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    if (errorMessage.includes('duplicate key value violates unique constraint')) {
+      return NextResponse.json(
+        { error: 'Answer already exists for this question' },
+        { status: 409 }
+      );
+    }
+    
     return NextResponse.json(
       { error: 'Failed to update answer' },
       { status: 500 }

@@ -75,8 +75,10 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
   const timeUpdateCounterRef = useRef<number>(0);
   const connectionMonitorRef = useRef<NodeJS.Timeout | null>(null);
   const lastActivityRef = useRef<Date>(new Date());
+  const submitAnswerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingAnswersRef = useRef<Map<number, { userAnswer: number[], timeSpent: number }>>(new Map());
 
-  // Helper to update state
+  // Helper to update state with debouncing to prevent excessive updates
   const updateState = useCallback((updates: Partial<OptimizedExamSessionState> | ((prev: OptimizedExamSessionState) => OptimizedExamSessionState)) => {
     if (typeof updates === 'function') {
       setState(updates);
@@ -85,7 +87,7 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
     }
   }, []);
 
-  // Monitor connection status
+  // Monitor connection status with reduced frequency
   const startConnectionMonitor = useCallback(() => {
     if (connectionMonitorRef.current) {
       clearInterval(connectionMonitorRef.current);
@@ -93,20 +95,33 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
 
     connectionMonitorRef.current = setInterval(() => {
       const status = realtimeService.getConnectionStatus();
-      updateState({ connectionStatus: status });
+      
+      // Only update state if status actually changed
+      setState(prev => {
+        if (prev.connectionStatus !== status) {
+          let syncStatus = prev.syncStatus;
+          
+          // Update sync status based on connection
+          if (status === 'OPEN') {
+            syncStatus = 'synced';
+          } else if (status === 'CONNECTING') {
+            syncStatus = 'syncing';
+          } else {
+            syncStatus = 'offline';
+          }
+          
+          return {
+            ...prev,
+            connectionStatus: status,
+            syncStatus
+          };
+        }
+        return prev;
+      });
+    }, 2000); // Reduced frequency to every 2 seconds
+  }, []);
 
-      // Update sync status based on connection
-      if (status === 'OPEN') {
-        updateState({ syncStatus: 'synced' });
-      } else if (status === 'CONNECTING') {
-        updateState({ syncStatus: 'syncing' });
-      } else {
-        updateState({ syncStatus: 'offline' });
-      }
-    }, 1000);
-  }, [updateState]);
-
-  // Start time tracking
+  // Start time tracking with reduced frequency to prevent excessive updates
   const startTimeTracking = useCallback(() => {
     if (timeTrackingTimerRef.current) {
       clearInterval(timeTrackingTimerRef.current);
@@ -123,23 +138,22 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
         }));
         lastActivityRef.current = now;
 
-        // Periodically persist time updates to DB (every 5 seconds)
+        // Periodically persist time updates to DB (every 10 seconds to reduce calls)
         timeUpdateCounterRef.current += timeDiff;
-        if (timeUpdateCounterRef.current >= 5 && state.session) {
+        if (timeUpdateCounterRef.current >= 10 && state.session) {
           try {
             await supabaseExamService.updateSession(state.session.id, state.session.user_id, {
               time_spent_seconds: state.timeSpent + timeDiff,
               last_activity: now.toISOString()
             } as any);
+            timeUpdateCounterRef.current = 0; // Reset counter only on success
           } catch (err) {
-            // Non-fatal; keep local time running
-          } finally {
-            timeUpdateCounterRef.current = 0;
+            // Non-fatal; keep local time running but don't reset counter to retry later
           }
         }
       }
-    }, 1000);
-  }, [updateState, state.timeSpent]);
+    }, 5000); // Reduced to every 5 seconds instead of 1 second
+  }, [updateState]);
 
   // Calculate progress
   const calculateProgress = useCallback((session: ParsedUserExamSession, answers: Map<number, ParsedUserAnswer>) => {
@@ -147,9 +161,12 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
     return (answers.size / session.total_questions) * 100;
   }, []);
 
-  // Setup real-time subscriptions for a session
+  // Setup real-time subscriptions for a session with stable dependencies
   const setupRealtimeSync = useCallback(async (sessionId: string, userId: string) => {
     try {
+      // Cleanup any existing subscriptions first
+      await realtimeService.unsubscribeAll();
+
       // Setup exam session subscription with automatic sync
       await realtimeService.subscribeToExamSession(sessionId, userId, {
         onSessionUpdate: (sessionUpdate) => {
@@ -174,8 +191,7 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
         },
 
         onBroadcast: (data: SessionBroadcastData) => {
-          console.log('Received broadcast:', data);
-          // Handle broadcast events like other users' actions
+          // Handle broadcast events like other users' actions silently
         },
 
         onError: (error) => {
@@ -187,12 +203,12 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
         }
       });
 
-      // Setup presence tracking
+      // Setup presence tracking with throttling
       const presenceData: UserPresenceData = {
         userId,
         sessionId,
-        examId: state.session?.exam_id,
-        currentQuestionIndex: state.currentQuestionIndex,
+        examId: undefined, // Will be set when session loads
+        currentQuestionIndex: 0,
         isActive: true,
         lastSeen: new Date().toISOString()
       };
@@ -203,8 +219,8 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
 
       // Setup auto-sync manager
       autoSyncManagerRef.current = realtimeService.createAutoSyncManager(sessionId, {
-        batchInterval: 3000, // 3 seconds for exam sessions
-        maxBatchSize: 5,
+        batchInterval: 5000, // Increased to 5 seconds to reduce calls
+        maxBatchSize: 10,    // Increased batch size
         onSyncError: (error) => {
           updateState({ 
             syncStatus: 'error',
@@ -223,7 +239,7 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
         syncStatus: 'error'
       });
     }
-  }, [updateState, calculateProgress]); // Removed state.session and state.currentQuestionIndex dependencies
+  }, [updateState, calculateProgress]);
 
   // Cleanup real-time subscriptions
   const cleanupRealtimeSync = useCallback(async () => {
@@ -249,12 +265,6 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
       // Setup real-time sync immediately after session creation
       await setupRealtimeSync(response.session.id, userId);
 
-      console.log('Session created successfully, updating state:', {
-        sessionId: response.session.id,
-        questionsCount: response.session.questions?.length || 0,
-        firstQuestion: response.session.questions?.[0]?.id
-      });
-
       updateState({
         session: response.session,
         currentQuestion: response.session.questions?.[0] || null,
@@ -263,8 +273,6 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
         isLoading: false,
         syncStatus: 'synced'
       } as Partial<OptimizedExamSessionState>);
-
-      console.log('State updated after session creation');
 
       // Start time tracking
       startTimeTracking();
@@ -293,12 +301,16 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
       // Setup real-time sync for existing session
       await setupRealtimeSync(sessionId, userId);
 
-      console.log('Session loaded successfully, updating state:', {
-        sessionId: response.session.id,
-        questionsCount: response.session.questions?.length || 0,
-        currentQuestionIndex: response.session.current_question_index,
-        currentQuestion: response.session.questions?.[response.session.current_question_index]?.id
-      });
+      // Create answers map from loaded answers
+      const answersMap = new Map<number, ParsedUserAnswer>();
+      if (response.answers) {
+        response.answers.forEach(answer => {
+          answersMap.set(answer.question_id, answer);
+        });
+        console.log('Loaded answers from session state:', Object.fromEntries(
+          Array.from(answersMap.entries()).map(([k, v]) => [k, v.user_answer])
+        ));
+      }
 
       updateState({
         session: response.session,
@@ -306,6 +318,8 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
         currentQuestionIndex: response.session.current_question_index,
         totalQuestions: response.session.total_questions,
         timeSpent: response.session.time_spent_seconds,
+        answers: answersMap,
+        progress: calculateProgress(response.session, answersMap),
         isLoading: false,
         syncStatus: 'synced'
       } as Partial<OptimizedExamSessionState>);
@@ -325,71 +339,94 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
         syncStatus: 'error'
       });
     }
-  }, [updateState, setupRealtimeSync, startTimeTracking]);
+  }, [updateState, setupRealtimeSync, startTimeTracking, calculateProgress]);
 
-  const submitAnswer = useCallback(async (questionId: number, userAnswer: number[], timeSpent = 0) => {
-    if (!state.session) return;
+  // Debounced submit answer to prevent rapid fire submissions
+  const submitAnswerDebounced = useCallback(async () => {
+    if (!state.session || pendingAnswersRef.current.size === 0) return;
+
+    const answersToSubmit = Array.from(pendingAnswersRef.current.entries());
+    pendingAnswersRef.current.clear();
 
     try {
       updateState({ syncStatus: 'syncing' });
 
-      const answerData: SubmitAnswerRequest = {
-        question_id: questionId,
-        user_answer: userAnswer,
-        time_spent_seconds: timeSpent
-      };
+      // Submit all pending answers sequentially to avoid conflicts
+      for (const [questionId, { userAnswer, timeSpent }] of answersToSubmit) {
+        const answerData: SubmitAnswerRequest = {
+          question_id: questionId,
+          user_answer: userAnswer,
+          time_spent_seconds: timeSpent
+        };
 
-      // Optimistic update
+        try {
+          const submittedAnswer = await supabaseExamService.submitAnswer(state.session.id, answerData);
+          console.log('Answer saved to database:', userAnswer);
+
+          // Update local state after successful submission
+          updateState(prev => {
+            const newAnswers = new Map(prev.answers);
+            newAnswers.set(questionId, submittedAnswer);
+            return {
+              ...prev,
+              answers: newAnswers,
+              progress: calculateProgress(prev.session!, newAnswers)
+            };
+          });
+        } catch (error: any) {
+          console.error(`Failed to submit answer for question ${questionId}:`, error);
+          // Don't break the loop, continue with other answers
+          // Keep the answer in pending state for retry
+          pendingAnswersRef.current.set(questionId, { userAnswer, timeSpent });
+        }
+      }
+
+      updateState({ syncStatus: 'synced', lastSyncTime: new Date() });
+
+    } catch (error: any) {
+      console.error('Failed to submit answers:', error);
+      updateState({
+        error: error.message,
+        syncStatus: 'error'
+      });
+    }
+  }, [state.session, updateState, calculateProgress]);
+
+  const submitAnswer = useCallback(async (questionId: number, userAnswer: number[], timeSpent = 0) => {
+    if (!state.session) return;
+
+    // Store the answer for debounced submission
+    pendingAnswersRef.current.set(questionId, { userAnswer, timeSpent });
+
+    // Update local state immediately for UI responsiveness
+    updateState(prev => {
+      const newAnswers = new Map(prev.answers);
       const optimisticAnswer: ParsedUserAnswer = {
         id: `temp_${questionId}`,
-        session_id: state.session.id,
+        session_id: state.session!.id,
         question_id: questionId,
         user_answer: userAnswer,
-        is_correct: null, // Will be calculated server-side
+        is_correct: null,
         is_flagged: false,
         time_spent_seconds: timeSpent,
         answered_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
+      newAnswers.set(questionId, optimisticAnswer);
+      return {
+        ...prev,
+        answers: newAnswers,
+        progress: calculateProgress(prev.session!, newAnswers)
+      };
+    });
 
-      updateState(prev => {
-        const newAnswers = new Map(prev.answers);
-        newAnswers.set(questionId, optimisticAnswer);
-        return {
-          ...prev,
-          answers: newAnswers,
-          progress: calculateProgress(prev.session!, newAnswers)
-        };
-      });
-
-      // Submit to server (this will trigger real-time update)
-      const submittedAnswer = await supabaseExamService.submitAnswer(state.session.id, answerData);
-
-      // Broadcast to other clients
-      await realtimeService.broadcastSessionEvent(state.session.id, {
-        type: 'answer_submitted',
-        sessionId: state.session.id,
-        userId: state.session.user_id,
-        data: { questionId, userAnswer, timeSpent }
-      });
-
-      updateState({ syncStatus: 'synced', lastSyncTime: new Date() });
-
-    } catch (error: any) {
-      // Revert optimistic update on error
-      updateState(prev => {
-        const newAnswers = new Map(prev.answers);
-        newAnswers.delete(questionId);
-        return {
-          ...prev,
-          answers: newAnswers,
-          progress: calculateProgress(prev.session!, newAnswers),
-          error: error.message,
-          syncStatus: 'error'
-        };
-      });
+    // Clear existing timeout and set new one
+    if (submitAnswerTimeoutRef.current) {
+      clearTimeout(submitAnswerTimeoutRef.current);
     }
-  }, [state.session, updateState, calculateProgress]);
+
+    submitAnswerTimeoutRef.current = setTimeout(submitAnswerDebounced, 500); // 500ms debounce
+  }, [state.session, updateState, calculateProgress, submitAnswerDebounced]);
 
   const flagQuestion = useCallback(async (questionId: number, flagged: boolean) => {
     if (!state.session) return;
@@ -418,29 +455,32 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
       currentQuestion: question
     });
 
-    // Update presence
-    if (state.session) {
-      await realtimeService.updatePresence(state.session.id, {
-        currentQuestionIndex: index
-      });
+    // Batch these updates to reduce API calls
+    try {
+      // Update presence and broadcast in parallel
+      const promises = [
+        realtimeService.updatePresence(state.session.id, {
+          currentQuestionIndex: index
+        }),
+        realtimeService.broadcastSessionEvent(state.session.id, {
+          type: 'question_navigated',
+          sessionId: state.session.id,
+          userId: state.session.user_id,
+          data: { questionIndex: index, questionId: question.id }
+        })
+      ];
 
-      // Broadcast navigation
-      await realtimeService.broadcastSessionEvent(state.session.id, {
-        type: 'question_navigated',
-        sessionId: state.session.id,
-        userId: state.session.user_id,
-        data: { questionIndex: index, questionId: question.id }
-      });
+      await Promise.all(promises);
 
-      // Persist current question index to DB
-      try {
-        await supabaseExamService.updateSession(state.session.id, state.session.user_id, {
-          current_question_index: index,
-          last_activity: new Date().toISOString()
-        } as any);
-      } catch (err) {
-        // Ignore transient errors
-      }
+      // Persist current question index to DB (debounced)
+      await supabaseExamService.updateSession(state.session.id, state.session.user_id, {
+        current_question_index: index,
+        last_activity: new Date().toISOString()
+      } as any);
+
+    } catch (err) {
+      // Ignore transient errors to prevent blocking navigation
+      console.warn('Failed to sync navigation:', err);
     }
   }, [state.session, updateState]);
 
@@ -558,6 +598,12 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
     if (connectionMonitorRef.current) {
       clearInterval(connectionMonitorRef.current);
     }
+    if (submitAnswerTimeoutRef.current) {
+      clearTimeout(submitAnswerTimeoutRef.current);
+    }
+    
+    // Clear pending answers
+    pendingAnswersRef.current.clear();
     
     await cleanupRealtimeSync();
 
@@ -605,6 +651,9 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      if (submitAnswerTimeoutRef.current) {
+        clearTimeout(submitAnswerTimeoutRef.current);
+      }
       resetSession();
     };
   }, [resetSession]);

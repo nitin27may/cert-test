@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { ParsedQuestion } from '@/lib/types';
 import Header from '@/components/Header';
@@ -28,10 +28,14 @@ export default function ExamPracticePage() {
   const [isBooting, setIsBooting] = useState(false);
   const bootCompletedRef = useRef(false);
 
-  const questions: ParsedQuestion[] = useMemo(() => sessionState.session?.questions || [], [sessionState.session]);
-  const currentQuestionIndex = sessionState.currentQuestionIndex || 0;
-  const currentQuestion: ParsedQuestion | undefined = sessionState.currentQuestion || questions[currentQuestionIndex] || questions[0];
-  const examTitle = useMemo(() => sessionState.session?.exam_id || examId, [sessionState.session, examId]);
+  // Memoize computed values to prevent unnecessary re-renders
+  const questions: ParsedQuestion[] = useMemo(() => sessionState.session?.questions || [], [sessionState.session?.questions]);
+  const currentQuestionIndex = useMemo(() => sessionState.currentQuestionIndex || 0, [sessionState.currentQuestionIndex]);
+  const currentQuestion: ParsedQuestion | undefined = useMemo(() => 
+    sessionState.currentQuestion || questions[currentQuestionIndex] || questions[0], 
+    [sessionState.currentQuestion, questions, currentQuestionIndex]
+  );
+  const examTitle = useMemo(() => sessionState.session?.exam_id || examId, [sessionState.session?.exam_id, examId]);
 
   // Calculate time remaining based on database time spent
   const timeRemaining = useMemo(() => {
@@ -51,13 +55,21 @@ export default function ExamPracticePage() {
 
   // Start or resume a DB-backed session - only run once
   useEffect(() => {
-    if (bootCompletedRef.current || isBooting || !user?.id || !sessionActions.createSession || !sessionActions.loadSession) {
+    // More comprehensive check to prevent boot loops
+    if (bootCompletedRef.current || 
+        isBooting || 
+        !user?.id || 
+        !sessionActions.createSession || 
+        !sessionActions.loadSession ||
+        sessionState.isLoading) {
+      
       console.log('Boot skipped:', { 
         bootCompleted: bootCompletedRef.current, 
         isBooting, 
         hasUser: !!user?.id,
         hasCreateSession: !!sessionActions.createSession,
-        hasLoadSession: !!sessionActions.loadSession
+        hasLoadSession: !!sessionActions.loadSession,
+        sessionLoading: sessionState.isLoading
       });
       return;
     }
@@ -85,19 +97,6 @@ export default function ExamPracticePage() {
           console.log('Found existing session, resuming:', existing.id, 'Status:', existing.status);
           await sessionActions.loadSession(existing.id, user.id);
           console.log('Resumed existing session:', existing.id);
-          
-          // Check if session was loaded correctly
-          setTimeout(() => {
-            console.log('Session state after loading:', {
-              session: sessionState.session,
-              sessionQuestions: sessionState.session?.questions?.length || 0,
-              currentQuestion: sessionState.currentQuestion,
-              currentQuestionIndex: sessionState.currentQuestionIndex,
-              answers: sessionState.answers?.size || 0,
-              questionsArray: questions.length,
-              currentQuestionFromQuestions: questions[sessionState.currentQuestionIndex || 0]
-            });
-          }, 1000);
         } else {
           // No existing session found - redirect to setup page
           console.log('No existing session found, redirecting to setup');
@@ -116,7 +115,7 @@ export default function ExamPracticePage() {
     };
     
     boot();
-  }, [user?.id, examId, isBooting, sessionActions.createSession, sessionActions.loadSession]);
+  }, [user?.id, examId, sessionIdFromUrl]); // Removed volatile dependencies
 
   // Cleanup when examId changes
   useEffect(() => {
@@ -126,37 +125,30 @@ export default function ExamPracticePage() {
     };
   }, [examId]);
 
-  // Load answers from database when session loads
+  // Load answers from database when session loads - with stable dependencies
   useEffect(() => {
-    if (sessionState.session?.id) {
-      console.log('Session loaded, attempting to load answers:', {
-        sessionId: sessionState.session.id,
-        hasAnswers: !!sessionState.answers,
-        answersSize: sessionState.answers?.size || 0,
-        sessionStatus: sessionState.session.status
+    if (!sessionState.session?.id || !questions.length) return;
+
+    // Only proceed if session is fully loaded and not in loading state
+    if (sessionState.isLoading || !sessionState.currentQuestion || isBooting) {
+      return;
+    }
+
+    // If we have answers in the session state, load them
+    if (sessionState.answers && sessionState.answers.size > 0) {
+      const answersFromDb: Record<number, number | number[]> = {};
+      sessionState.answers.forEach((answer, questionId) => {
+        // Find the question index by question ID
+        const questionIndex = questions.findIndex(q => q.id === questionId);
+        if (questionIndex !== -1) {
+          answersFromDb[questionIndex] = answer.user_answer;
+        }
       });
       
-      // If we have answers in the session state, load them
-      if (sessionState.answers && sessionState.answers.size > 0) {
-        const answersFromDb: Record<number, number | number[]> = {};
-        sessionState.answers.forEach((answer, questionId) => {
-          // Find the question index by question ID
-          const questionIndex = questions.findIndex(q => q.id === questionId);
-          if (questionIndex !== -1) {
-            answersFromDb[questionIndex] = answer.user_answer;
-          }
-        });
-        
-        setUserAnswers(answersFromDb);
-        console.log('Loaded answers from session state:', answersFromDb);
-      } else {
-        // If no answers in session state, try to load them directly from the database
-        loadAnswersFromDatabase(sessionState.session.id);
-      }
-    } else {
-      console.log('No session to load answers from');
+      setUserAnswers(answersFromDb);
+      console.log('Loaded answers from session state:', answersFromDb);
     }
-  }, [sessionState.session?.id, sessionState.answers, questions]);
+  }, [sessionState.session?.id, sessionState.isLoading, sessionState.currentQuestion, questions.length, isBooting]);
 
   // Function to load answers directly from database
   const loadAnswersFromDatabase = async (sessionId: string) => {
@@ -193,15 +185,13 @@ export default function ExamPracticePage() {
   // Remove the duplicate real-time setup since useOptimizedExamSession handles it
   // The hook already sets up real-time sync when a session is created/loaded
 
-  const handleAnswerSelect = async (answerIndex: number) => {
-    if (showExplanation) return;
-    
-    const question = questions[currentQuestionIndex];
+  const handleAnswerSelect = useCallback(async (answerIndex: number) => {
+    if (showExplanation || !currentQuestion) return;
     
     // Calculate the new answer value
     let newAnswer: number | number[];
     
-    if (question.type === 'multiple') {
+    if (currentQuestion.type === 'multiple') {
       // Handle multiple selection
       const currentAnswer = userAnswers[currentQuestionIndex];
       const currentAnswers = Array.isArray(currentAnswer) ? currentAnswer : [];
@@ -225,30 +215,34 @@ export default function ExamPracticePage() {
       [currentQuestionIndex]: newAnswer
     }));
 
-    // Save answer to database immediately
+    // Submit answer directly - let the hook handle debouncing
     try {
       const answerArray = Array.isArray(newAnswer) ? newAnswer : [newAnswer];
       
-      // Submit answer to database via the session hook
-      await sessionActions.submitAnswer(question.id, answerArray, 0);
-      console.log('Answer saved to database:', answerArray);
+      // Submit answer to database via the session hook (hook handles debouncing)
+      await sessionActions.submitAnswer(currentQuestion.id, answerArray, 0);
     } catch (error) {
       console.error('Failed to save answer to database:', error);
-      // Optionally show error to user
+      // Revert local state on error
+      setUserAnswers(prev => {
+        const reverted = { ...prev };
+        delete reverted[currentQuestionIndex];
+        return reverted;
+      });
     }
-  };
+  }, [showExplanation, currentQuestion, userAnswers, currentQuestionIndex, sessionActions.submitAnswer]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     sessionActions.nextQuestion();
     setShowExplanation(false);
-  };
+  }, [sessionActions.nextQuestion]);
 
-  const handlePrevious = () => {
+  const handlePrevious = useCallback(() => {
     sessionActions.previousQuestion();
     setShowExplanation(false);
-  };
+  }, [sessionActions.previousQuestion]);
 
-  const handleCheckAnswer = async () => {
+  const handleCheckAnswer = useCallback(async () => {
     if (!currentQuestion || !sessionState.session) return;
     
     try {
@@ -265,7 +259,7 @@ export default function ExamPracticePage() {
       setCheckedAnswers(prev => ({ ...prev, [currentQuestionIndex]: false }));
       setShowExplanation(false);
     }
-  };
+  }, [currentQuestion, sessionState.session, currentQuestionIndex]);
 
   const handlePauseTest = () => {
     setShowPauseModal(true);
@@ -338,25 +332,6 @@ export default function ExamPracticePage() {
     }
   };
 
-  // Debug logging
-  console.log('Session state debug:', {
-    isLoading: sessionState.isLoading,
-    hasSession: !!sessionState.session,
-    hasCurrentQuestion: !!currentQuestion,
-    isBooting,
-    sessionId: sessionState.session?.id,
-    sessionStatus: sessionState.session?.status,
-    questionsCount: sessionState.session?.questions?.length || 0,
-    currentQuestionIndex: sessionState.currentQuestionIndex,
-    error: sessionState.error,
-    // Add detailed debugging for currentQuestion logic
-    sessionStateCurrentQuestion: sessionState.currentQuestion,
-    questionsArray: questions,
-    questionsArrayLength: questions.length,
-    questionsAtIndex: questions[sessionState.currentQuestionIndex],
-    currentQuestionFallback: questions[sessionState.currentQuestionIndex]
-  });
-
   // Check if session has questions, if not redirect to setup
   useEffect(() => {
     console.log('Session state changed:', {
@@ -402,18 +377,8 @@ export default function ExamPracticePage() {
     );
   }
 
-  // Debug the loading condition
+  // Check loading condition
   const loadingCondition = sessionState.isLoading || !sessionState.session || !currentQuestion || isBooting;
-  console.log('Loading condition debug:', {
-    isLoading: sessionState.isLoading,
-    hasSession: !!sessionState.session,
-    hasCurrentQuestion: !!currentQuestion,
-    isBooting,
-    loadingCondition,
-    sessionQuestionsCount: sessionState.session?.questions?.length || 0,
-    currentQuestionIndex,
-    questionsArrayLength: questions.length
-  });
 
   if (loadingCondition) {
     return (
