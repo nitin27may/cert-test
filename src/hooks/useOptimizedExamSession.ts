@@ -77,8 +77,12 @@ export function useOptimizedExamSession(): [OptimizedExamSessionState, Optimized
   const lastActivityRef = useRef<Date>(new Date());
 
   // Helper to update state
-  const updateState = useCallback((updates: Partial<OptimizedExamSessionState>) => {
-    setState(prev => ({ ...prev, ...updates }));
+  const updateState = useCallback((updates: Partial<OptimizedExamSessionState> | ((prev: OptimizedExamSessionState) => OptimizedExamSessionState)) => {
+    if (typeof updates === 'function') {
+      setState(updates);
+    } else {
+      setState(prev => ({ ...prev, ...updates }));
+    }
   }, []);
 
   // Monitor connection status

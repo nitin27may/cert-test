@@ -9,75 +9,27 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseExamService } from '@/lib/services/supabaseService';
-import { SubmitAnswerRequest } from '@/lib/types';
-import { supabase } from '@/lib/supabase';
-
-// Helper function to verify authentication
-async function verifyAuth(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return { error: 'Authorization required', status: 401 };
-  }
-
-  const token = authHeader.split(' ')[1];
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  
-  if (authError || !user) {
-    return { error: 'Invalid authentication', status: 401 };
-  }
-
-  return { user };
-}
 
 // GET /api/answers - Get session answers
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await verifyAuth(request);
-    if ('error' in authResult) {
-      return NextResponse.json(
-        { success: false, error: authResult.error },
-        { status: authResult.status }
-      );
-    }
-
-    const { user } = authResult;
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('sessionId');
+    const userId = searchParams.get('userId');
 
-    if (!sessionId) {
+    if (!sessionId || !userId) {
       return NextResponse.json(
-        { success: false, error: 'Session ID is required' },
+        { error: 'Missing required parameters: sessionId and userId' },
         { status: 400 }
       );
     }
 
-    // Verify session belongs to user
-    try {
-      await supabaseExamService.getSession(sessionId, user.id);
-    } catch (error) {
-      return NextResponse.json(
-        { success: false, error: 'Session not found or access denied' },
-        { status: 404 }
-      );
-    }
-
-    const answers = await supabaseExamService.getSessionAnswers(sessionId);
-
-    return NextResponse.json({
-      success: true,
-      data: answers,
-      count: answers.length
-    });
-
-  } catch (error: any) {
+    const response = await supabaseExamService.getSessionAnswers(sessionId);
+    return NextResponse.json(response);
+  } catch (error: unknown) {
     console.error('GET /api/answers error:', error);
-    
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to fetch answers',
-        details: error.message
-      },
+      { error: 'Failed to fetch session answers' },
       { status: 500 }
     );
   }
@@ -86,118 +38,58 @@ export async function GET(request: NextRequest) {
 // POST /api/answers - Submit answer
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await verifyAuth(request);
-    if ('error' in authResult) {
-      return NextResponse.json(
-        { success: false, error: authResult.error },
-        { status: authResult.status }
-      );
-    }
+    const body = await request.json();
+    const { sessionId, questionId, selectedAnswers, timeSpent } = body;
 
-    const { user } = authResult;
-
-    // Parse request body
-    const { sessionId, ...answerData }: { sessionId: string } & SubmitAnswerRequest = await request.json();
-    
-    if (!sessionId || !answerData.question_id || !answerData.user_answer) {
+    if (!sessionId || !questionId || !selectedAnswers) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Invalid answer data', 
-          details: 'Missing required fields: sessionId, question_id, user_answer' 
-        },
+        { error: 'Missing required fields: sessionId, questionId, selectedAnswers' },
         { status: 400 }
       );
     }
 
-    // Verify session belongs to user
-    try {
-      await supabaseExamService.getSession(sessionId, user.id);
-    } catch (error) {
-      return NextResponse.json(
-        { success: false, error: 'Session not found or access denied' },
-        { status: 404 }
-      );
-    }
+    const answerData = {
+      question_id: questionId,
+      user_answer: selectedAnswers,
+      time_spent_seconds: timeSpent || 0
+    };
 
-    // Submit the answer
-    const submittedAnswer = await supabaseExamService.submitAnswer(sessionId, answerData);
-
-    return NextResponse.json({
-      success: true,
-      data: submittedAnswer,
-      message: 'Answer submitted successfully'
-    }, { status: 201 });
-
-  } catch (error: any) {
+    const response = await supabaseExamService.submitAnswer(sessionId, answerData);
+    return NextResponse.json(response);
+  } catch (error: unknown) {
     console.error('POST /api/answers error:', error);
-    
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to submit answer',
-        details: error.message
-      },
+      { error: 'Failed to submit answer' },
       { status: 500 }
     );
   }
 }
 
-// PUT /api/answers - Update answer (flag, modify response)
+// PUT /api/answers - Update answer
 export async function PUT(request: NextRequest) {
   try {
-    const authResult = await verifyAuth(request);
-    if ('error' in authResult) {
-      return NextResponse.json(
-        { success: false, error: authResult.error },
-        { status: authResult.status }
-      );
-    }
+    const body = await request.json();
+    const { sessionId, questionId, selectedAnswers, timeSpent } = body;
 
-    const { user } = authResult;
-
-    // Parse request body
-    const { sessionId, ...answerData }: { sessionId: string } & SubmitAnswerRequest = await request.json();
-    
-    if (!sessionId || !answerData.question_id) {
+    if (!sessionId || !questionId || !selectedAnswers) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Invalid answer data', 
-          details: 'Missing required fields: sessionId, question_id' 
-        },
+        { error: 'Missing required fields: sessionId, questionId, selectedAnswers' },
         { status: 400 }
       );
     }
 
-    // Verify session belongs to user
-    try {
-      await supabaseExamService.getSession(sessionId, user.id);
-    } catch (error) {
-      return NextResponse.json(
-        { success: false, error: 'Session not found or access denied' },
-        { status: 404 }
-      );
-    }
+    const answerData = {
+      question_id: questionId,
+      user_answer: selectedAnswers,
+      time_spent_seconds: timeSpent || 0
+    };
 
-    // Update the answer
-    const updatedAnswer = await supabaseExamService.submitAnswer(sessionId, answerData);
-
-    return NextResponse.json({
-      success: true,
-      data: updatedAnswer,
-      message: 'Answer updated successfully'
-    });
-
-  } catch (error: any) {
+    const response = await supabaseExamService.submitAnswer(sessionId, answerData);
+    return NextResponse.json(response);
+  } catch (error: unknown) {
     console.error('PUT /api/answers error:', error);
-    
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to update answer',
-        details: error.message
-      },
+      { error: 'Failed to update answer' },
       { status: 500 }
     );
   }

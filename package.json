@@ -8,7 +8,13 @@
     "start": "next start",
     "lint": "next lint",
     "migrate:exam-data": "tsx scripts/migrate-exam-data.ts",
-    "setup:db": "npx supabase db reset && npx supabase db push && npm run migrate:exam-data"
+    "setup:db": "npx supabase db reset && npx supabase db push && npm run migrate:exam-data",
+    "backup:db": "tsx scripts/backup-database.ts",
+    "restore:db": "tsx scripts/restore-database.ts",
+    "reset:db": "tsx scripts/reset-database.ts",
+    "verify:backup": "tsx scripts/verify-backup.ts",
+    "create:test-env": "tsx scripts/create-test-environment.ts",
+    "cleanup:test-env": "tsx scripts/cleanup-test-environment.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",

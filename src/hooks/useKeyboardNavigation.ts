@@ -28,7 +28,7 @@ export function useKeyboardNavigation({
       return;
     }
 
-    const currentQuestion = examSession.examQuestions[examSession.currentQuestionIndex];
+    const currentQuestion = examSession.questions[examSession.current_question_index];
     if (!currentQuestion) return;
 
     switch (event.key) {

@@ -121,15 +121,7 @@ export default function CertificationInfoPage() {
             </ol>
           </nav>
 
-          <button
-            onClick={() => router.push(`/exam/${examId}/setup`)}
-            className="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 mb-4 flex items-center"
-          >
-            <svg className="w-6 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path>
-            </svg>
-            Back to {certificationInfo.title || 'Exam Setup'}
-          </button>
+
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-100 dark:border-gray-700">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
               {certificationInfo.title}
@@ -211,7 +203,7 @@ export default function CertificationInfoPage() {
               </div>
               <div className="flex justify-between">
                 <span className="font-medium text-gray-700 dark:text-gray-300">Passing Score:</span>
-                <span className="text-gray-900 dark:text-white">{certificationInfo.exam_details.passing_score}</span>
+                <span className="text-gray-900 dark:text-white">{certificationInfo.exam_details.passingScore}</span>
               </div>
               <div className="flex justify-between">
                 <span className="font-medium text-gray-700 dark:text-gray-300">Cost:</span>

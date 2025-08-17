@@ -1,4 +1,4 @@
-import { Exam, Question, ParsedExam, ParsedQuestion, ExamListResponse, ExamDetailResponse, ExamQuestionsResponse } from './types';
+import { Exam, Question, ParsedExam, ParsedQuestion, ExamListResponse, ExamDetailResponse, ExamQuestionsResponse, ExamDifficulty } from './types';
 import { supabaseExamService } from './services/supabaseService';
 
 // Updated to use Supabase APIs instead of JSON file
@@ -9,14 +9,16 @@ export async function getAvailableExams(): Promise<ParsedExam[]> {
     return response.exams.map(exam => ({
       id: exam.id,
       title: exam.title,
-      description: exam.description || '',
-      totalQuestions: exam.total_questions,
-      networkingFocusPercentage: exam.networking_focus_percentage,
-      certification_guide_url: exam.certification_guide_url,
-      study_guide_url: exam.study_guide_url,
+      description: exam.description,
+      total_questions: exam.total_questions,
+      networking_focus_percentage: exam.networking_focus_percentage,
+      certification_guide_url: null, // Not available from list API
+      study_guide_url: null, // Not available from list API
       topics: [], // Will be loaded separately when needed
-      questions: [], // Will be loaded separately when needed
-      certificationInfo: null // Will be loaded separately when needed
+      certification_info: null, // Will be loaded separately when needed
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      is_active: true // Default to active since we don't have this field
     }));
   } catch (error) {
     console.error('Failed to load exams:', error);
@@ -39,14 +41,14 @@ export async function getExamQuestions(
   options?: {
     limit?: number;
     topics?: string[];
-    difficulty?: string[];
+    difficulty?: ExamDifficulty;
     shuffle?: boolean;
   }
 ): Promise<ParsedQuestion[]> {
   try {
     const response: ExamQuestionsResponse = await supabaseExamService.getExamQuestions(examId, {
       limit: options?.limit,
-      topics: options?.topics,
+      topicIds: options?.topics,
       difficulty: options?.difficulty,
       shuffle: options?.shuffle
     });

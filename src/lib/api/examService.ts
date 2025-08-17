@@ -24,18 +24,59 @@ class ExamService {
         // Get full exam details including topics and questions
         const fullExam = await this.getExamById(exam.id);
         if (fullExam) {
+          // Fetch questions for this exam
+          const parsedQuestions = await this.getExamQuestions(exam.id);
+          
+          // Convert ParsedQuestion to legacy Question format
+          const questions = parsedQuestions.map(q => ({
+            id: q.id,
+            topic: q.topic_id || '',
+            module: q.module || '',
+            category: q.category || '',
+            type: q.type === 'case-study' ? 'multiple' : q.type,
+            difficulty: q.difficulty,
+            question: q.question_text,
+            options: q.options,
+            correct: q.correct_answers,
+            explanation: q.explanation || '',
+            reasoning: q.reasoning || {
+              correct: '',
+              why_others_wrong: {}
+            },
+            reference: q.reference || {
+              title: '',
+              url: ''
+            }
+          }));
+          
+          // Convert ParsedCertificationInfo to legacy CertificationInfo format
+          const certificationInfo = fullExam.certification_info ? {
+            title: fullExam.certification_info.title,
+            description: fullExam.certification_info.description || '',
+            examCode: fullExam.certification_info.exam_code || '',
+            level: fullExam.certification_info.level || '',
+            validity: fullExam.certification_info.validity || '',
+            prerequisites: fullExam.certification_info.prerequisites,
+            skillsMeasured: fullExam.certification_info.skills_measured,
+            studyResources: fullExam.certification_info.study_resources,
+            examDetails: fullExam.certification_info.exam_details,
+            careerPath: fullExam.certification_info.career_path
+          } : undefined;
+          
           // Convert ParsedExam to legacy Exam format
           examRecord[exam.id] = {
             id: fullExam.id,
             title: fullExam.title,
-            description: fullExam.description,
-            totalQuestions: fullExam.totalQuestions,
-            networkingFocusPercentage: fullExam.networkingFocusPercentage,
-            certification_guide_url: fullExam.certification_guide_url,
-            study_guide_url: fullExam.study_guide_url,
-            topics: fullExam.topics,
-            questions: fullExam.questions,
-            certificationInfo: fullExam.certificationInfo
+            description: fullExam.description || '',
+            totalQuestions: fullExam.total_questions,
+            networkingFocusPercentage: fullExam.networking_focus_percentage ?? undefined,
+            topics: fullExam.topics.map(topic => ({
+              id: topic.id,
+              name: topic.name,
+              modules: topic.modules.map(module => module.module_name)
+            })),
+            questions: questions,
+            certificationInfo: certificationInfo
           };
         }
       }
@@ -76,7 +117,7 @@ class ExamService {
       // Use Supabase API directly for better performance
       const response: ExamQuestionsResponse = await supabaseExamService.getExamQuestions(examId, {
         limit: count,
-        topics: selectedTopics,
+        topicIds: selectedTopics,
         shuffle: true
       });
       
@@ -96,7 +137,7 @@ class ExamService {
         title: exam.title,
         description: exam.description || '',
         totalQuestions: exam.total_questions,
-        networkingFocusPercentage: exam.networking_focus_percentage
+        networkingFocusPercentage: exam.networking_focus_percentage ?? undefined
       }));
     } catch (error) {
       console.error('Failed to fetch available exams:', error);

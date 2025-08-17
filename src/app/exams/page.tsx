@@ -9,7 +9,7 @@ import Header from '@/components/Header';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import { examService } from '@/lib/api/examService';
 import { storage } from '@/lib/utils';
-import { CertificationInfo } from '@/lib/types';
+import { ParsedCertificationInfo } from '@/lib/types';
 
 // Helper function to get all exam progress from localStorage
 const getAllExamProgress = () => {
@@ -64,13 +64,13 @@ export default function ExamsPage() {
     const loadCertificationInfo = async () => {
       if (exams.length === 0) return;
       
-      const certificationInfoData: Record<string, CertificationInfo> = {};
+      const certificationInfoData: Record<string, ParsedCertificationInfo> = {};
       
       for (const exam of exams) {
         try {
           const examData = await examService.getExamById(exam.id);
-          if (examData && examData.certificationInfo) {
-            certificationInfoData[exam.id] = examData.certificationInfo;
+          if (examData && examData.certification_info) {
+            certificationInfoData[exam.id] = examData.certification_info;
           }
         } catch (err) {
           console.error(`Error loading certification info for ${exam.id}:`, err);

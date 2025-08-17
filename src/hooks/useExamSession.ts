@@ -152,7 +152,7 @@ export function useExamSession(
         const additionalTime = Math.floor((currentTime.getTime() - lastActivityRef.current.getTime()) / 1000);
         
         if (additionalTime > 0) {
-          updateState(prev => ({
+          setState((prev: ExamSessionState) => ({
             ...prev,
             timeSpent: prev.timeSpent + additionalTime
           }));
@@ -160,7 +160,7 @@ export function useExamSession(
         }
       }
     }, 1000);
-  }, [updateState]);
+  }, [setState]);
 
   const stopTimeTracking = useCallback(() => {
     if (timeTrackingTimerRef.current) {
@@ -230,7 +230,7 @@ export function useExamSession(
     switch (event.type) {
       case 'session_update':
         // Update session data from real-time event
-        updateState(prev => ({
+        setState((prev: ExamSessionState) => ({
           ...prev,
           session: prev.session ? { ...prev.session, ...event.data } : null
         }));
@@ -238,13 +238,13 @@ export function useExamSession(
 
       case 'answer_update':
         // Update answers map with new/updated answer
-        updateState(prev => ({
+        setState((prev: ExamSessionState) => ({
           ...prev,
           answers: new Map(prev.answers).set(event.question_id, event.data)
         }));
         break;
     }
-  }, [updateState]);
+  }, []);
 
   // Calculate progress
   const calculateProgress = useCallback((session: ParsedUserExamSession, answers: Map<number, ParsedUserAnswer>) => {
@@ -340,7 +340,7 @@ export function useExamSession(
       const submittedAnswer = await supabaseExamService.submitAnswer(state.session.id, answerData);
 
       // Update local state
-      updateState(prev => ({
+      setState((prev: ExamSessionState) => ({
         ...prev,
         answers: new Map(prev.answers).set(questionId, submittedAnswer),
         progress: calculateProgress(prev.session!, new Map(prev.answers).set(questionId, submittedAnswer))
@@ -367,7 +367,7 @@ export function useExamSession(
 
       const updatedAnswer = await supabaseExamService.submitAnswer(state.session.id, answerData);
 
-      updateState(prev => ({
+      setState((prev: ExamSessionState) => ({
         ...prev,
         answers: new Map(prev.answers).set(questionId, updatedAnswer)
       }));
@@ -411,7 +411,7 @@ export function useExamSession(
       stopAutoSave();
       stopTimeTracking();
 
-      updateState(prev => ({
+      setState((prev: ExamSessionState) => ({
         ...prev,
         session: prev.session ? { ...prev.session, status: 'paused' as SessionStatus } : null
       }));
@@ -428,7 +428,7 @@ export function useExamSession(
       startAutoSave();
       startTimeTracking();
 
-      updateState(prev => ({
+      setState((prev: ExamSessionState) => ({
         ...prev,
         session: prev.session ? { ...prev.session, status: 'in_progress' as SessionStatus } : null
       }));
@@ -455,7 +455,7 @@ export function useExamSession(
       stopTimeTracking();
       cleanupRealTimeSync();
 
-      updateState(prev => ({
+      setState((prev: ExamSessionState) => ({
         ...prev,
         session: prev.session ? { ...prev.session, status: 'completed' as SessionStatus } : null,
         isLoading: false
@@ -489,11 +489,11 @@ export function useExamSession(
   }, [stopAutoSave, stopTimeTracking, cleanupRealTimeSync]);
 
   const updateTimeSpent = useCallback((additionalSeconds: number) => {
-    updateState(prev => ({
+    setState((prev: ExamSessionState) => ({
       ...prev,
       timeSpent: prev.timeSpent + additionalSeconds
     }));
-  }, [updateState]);
+  }, [setState]);
 
   // Cleanup on unmount
   useEffect(() => {

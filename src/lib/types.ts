@@ -382,8 +382,8 @@ export interface ExamSession {
 }
 
 export interface ExamState {
-  currentExam: Exam | null;
-  examSession: ExamSession | null;
+  currentExam: ParsedExam | Partial<ParsedExam> | null;
+  examSession: ParsedUserExamSession | null;
   isLoading: boolean;
   error: string | null;
 }

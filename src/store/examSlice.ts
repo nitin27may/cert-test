@@ -78,88 +78,33 @@ const examSlice = createSlice({
   initialState,
   reducers: {
     selectAnswer: (state, action: PayloadAction<{ questionId: number; answer: number | number[] }>) => {
-      if (!state.examSession) return;
-      
-      const { questionId, answer } = action.payload;
-      state.examSession.userAnswers[questionId] = answer;
-      
-      // Add to answered questions if not already there
-      if (!state.examSession.answeredQuestions.includes(questionId)) {
-        state.examSession.answeredQuestions.push(questionId);
-      }
-      
-      // Update last activity
-      state.examSession.lastActivity = new Date().toISOString();
-      
-      // Note: Session updates are now handled by the useOptimizedExamSession hook
+      // Session updates are now handled by the useOptimizedExamSession hook
       // which syncs with the database automatically
+      // This reducer is kept for compatibility but no longer modifies state
     },
 
     checkAnswer: (state, action: PayloadAction<number>) => {
-      if (!state.examSession || !state.currentExam) return;
-      
-      const questionId = action.payload;
-      const question = state.examSession.examQuestions.find(q => q.id === questionId);
-      const userAnswer = state.examSession.userAnswers[questionId];
-      
-      if (!question || userAnswer === undefined) return;
-      
-      // Add to checked questions
-      if (!state.examSession.checkedQuestions.includes(questionId)) {
-        state.examSession.checkedQuestions.push(questionId);
-        
-        // Check if answer is correct - use correct_answers for new format
-        const correctAnswers = question.correct_answers || question.correct;
-        const isCorrect = validateAnswer(userAnswer, correctAnswers, question.type);
-        if (isCorrect) {
-          state.examSession.correctAnswers++;
-        }
-      }
-      
-      // Update last activity
-      state.examSession.lastActivity = new Date().toISOString();
-      
-      // Note: Session updates are now handled by the useOptimizedExamSession hook
+      // Session updates are now handled by the useOptimizedExamSession hook
       // which syncs with the database automatically
+      // This reducer is kept for compatibility but no longer modifies state
     },
 
     navigateToQuestion: (state, action: PayloadAction<number>) => {
-      if (!state.examSession) return;
-      
-      const index = action.payload;
-      if (index >= 0 && index < state.examSession.examQuestions.length) {
-        state.examSession.currentQuestionIndex = index;
-        state.examSession.lastActivity = new Date().toISOString();
-        
-        // Note: Session updates are now handled by the useOptimizedExamSession hook
-        // which syncs with the database automatically
-      }
+      // Session updates are now handled by the useOptimizedExamSession hook
+      // which syncs with the database automatically
+      // This reducer is kept for compatibility but no longer modifies state
     },
 
     nextQuestion: (state) => {
-      if (!state.examSession) return;
-      
-      const nextIndex = state.examSession.currentQuestionIndex + 1;
-      if (nextIndex < state.examSession.examQuestions.length) {
-        state.examSession.currentQuestionIndex = nextIndex;
-        state.examSession.lastActivity = new Date().toISOString();
-        
-        // Note: Session updates are now handled by the useOptimizedExamSession hook
-        // which syncs with the database automatically
-      }
+      // Session updates are now handled by the useOptimizedExamSession hook
+      // which syncs with the database automatically
+      // This reducer is kept for compatibility but no longer modifies state
     },
 
     previousQuestion: (state) => {
-      if (!state.examSession) return;
-      
-      const prevIndex = state.examSession.currentQuestionIndex - 1;
-      if (prevIndex >= 0) {
-        state.examSession.currentQuestionIndex = prevIndex;
-        state.examSession.lastActivity = new Date().toISOString();
-        
-        // Note: Session updates are now handled by the useOptimizedExamSession hook
-        // which syncs with the database automatically
-      }
+      // Session updates are now handled by the useOptimizedExamSession hook
+      // which syncs with the database automatically
+      // This reducer is kept for compatibility but no longer modifies state
     },
 
     resetExamSession: (state) => {

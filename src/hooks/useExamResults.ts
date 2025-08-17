@@ -657,7 +657,7 @@ export function useExamResults(userId: string): [ExamResultsState, ExamResultsAc
       await realtimeService.subscribeToUserResults(
         userId,
         (result) => {
-          updateState(prev => ({
+          setState((prev: ExamResultsState) => ({
             ...prev,
             results: [result, ...prev.results.filter(r => r.id !== result.id)],
             lastUpdated: new Date()
@@ -674,7 +674,7 @@ export function useExamResults(userId: string): [ExamResultsState, ExamResultsAc
     return () => {
       realtimeService.unsubscribeAll();
     };
-  }, [userId, updateState]);
+  }, [userId, setState]);
 
   // Load initial data
   useEffect(() => {

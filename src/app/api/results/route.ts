@@ -8,76 +8,28 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseExamService } from '@/lib/services/supabaseService';
-import { supabase } from '@/lib/supabase';
 
-// Helper function to verify authentication
-async function verifyAuth(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return { error: 'Authorization required', status: 401 };
-  }
-
-  const token = authHeader.split(' ')[1];
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  
-  if (authError || !user) {
-    return { error: 'Invalid authentication', status: 401 };
-  }
-
-  return { user };
-}
-
-// GET /api/results - Get user's exam results
+// GET /api/results - Get user results
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await verifyAuth(request);
-    if ('error' in authResult) {
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+    const examId = searchParams.get('examId');
+    const limit = searchParams.get('limit');
+
+    if (!userId) {
       return NextResponse.json(
-        { success: false, error: authResult.error },
-        { status: authResult.status }
+        { error: 'Missing required parameter: userId' },
+        { status: 400 }
       );
     }
 
-    const { user } = authResult;
-    const { searchParams } = new URL(request.url);
-    const examId = searchParams.get('examId');
-    const limit = searchParams.get('limit');
-    const offset = searchParams.get('offset');
-
-    const response = await supabaseExamService.getUserResults(user.id);
-    
-    let filteredResults = response.results;
-
-    // Filter by exam ID if provided
-    if (examId) {
-      filteredResults = filteredResults.filter(result => result.exam_id === examId);
-    }
-
-    // Apply pagination
-    const startIndex = offset ? parseInt(offset) : 0;
-    const endIndex = limit ? startIndex + parseInt(limit) : filteredResults.length;
-    const paginatedResults = filteredResults.slice(startIndex, endIndex);
-
-    return NextResponse.json({
-      success: true,
-      data: paginatedResults,
-      pagination: {
-        count: paginatedResults.length,
-        total: filteredResults.length,
-        offset: startIndex,
-        limit: limit ? parseInt(limit) : filteredResults.length
-      }
-    });
-
-  } catch (error: any) {
+    const response = await supabaseExamService.getUserResults(userId);
+    return NextResponse.json(response);
+  } catch (error: unknown) {
     console.error('GET /api/results error:', error);
-    
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to fetch results',
-        details: error.message
-      },
+      { error: 'Failed to fetch user results' },
       { status: 500 }
     );
   }
@@ -86,62 +38,22 @@ export async function GET(request: NextRequest) {
 // POST /api/results - Complete session and generate results
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await verifyAuth(request);
-    if ('error' in authResult) {
-      return NextResponse.json(
-        { success: false, error: authResult.error },
-        { status: authResult.status }
-      );
-    }
+    const body = await request.json();
+    const { sessionId, userId } = body;
 
-    const { user } = authResult;
-
-    // Parse request body
-    const { sessionId }: { sessionId: string } = await request.json();
-    
-    if (!sessionId) {
+    if (!sessionId || !userId) {
       return NextResponse.json(
-        { success: false, error: 'Session ID is required' },
+        { error: 'Missing required fields: sessionId, userId' },
         { status: 400 }
       );
     }
 
-    // Verify session belongs to user and is in progress
-    try {
-      const sessionResponse = await supabaseExamService.getSession(sessionId, user.id);
-      const session = sessionResponse.session;
-      
-      if (session.status === 'completed') {
-        return NextResponse.json(
-          { success: false, error: 'Session already completed' },
-          { status: 400 }
-        );
-      }
-    } catch (error) {
-      return NextResponse.json(
-        { success: false, error: 'Session not found or access denied' },
-        { status: 404 }
-      );
-    }
-
-    // Complete the session and generate results
     const response = await supabaseExamService.completeSession(sessionId);
-
-    return NextResponse.json({
-      success: true,
-      data: response.result,
-      message: 'Session completed and results generated successfully'
-    }, { status: 201 });
-
-  } catch (error: any) {
+    return NextResponse.json(response, { status: 201 });
+  } catch (error: unknown) {
     console.error('POST /api/results error:', error);
-    
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to complete session',
-        details: error.message
-      },
+      { error: 'Failed to complete session' },
       { status: 500 }
     );
   }

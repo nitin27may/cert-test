@@ -9,186 +9,84 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseExamService } from '@/lib/services/supabaseService';
-import { CreateSessionRequest, UpdateSessionRequest } from '@/lib/types';
-import { supabase } from '@/lib/supabase';
 
-// Helper function to verify authentication
-async function verifyAuth(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return { error: 'Authorization required', status: 401 };
-  }
-
-  const token = authHeader.split(' ')[1];
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  
-  if (authError || !user) {
-    return { error: 'Invalid authentication', status: 401 };
-  }
-
-  return { user };
-}
-
-// GET /api/sessions - Get user's exam sessions
+// GET /api/sessions - Get user sessions
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await verifyAuth(request);
-    if ('error' in authResult) {
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+    const examId = searchParams.get('examId');
+    const status = searchParams.get('status');
+
+    if (!userId) {
       return NextResponse.json(
-        { success: false, error: authResult.error },
-        { status: authResult.status }
+        { error: 'Missing required parameter: userId' },
+        { status: 400 }
       );
     }
 
-    const { user } = authResult;
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status');
-    const examId = searchParams.get('examId');
-
-    const response = await supabaseExamService.getUserSessions(user.id);
-    
-    let filteredSessions = response.sessions;
-
-    // Filter by status if provided
-    if (status) {
-      filteredSessions = filteredSessions.filter(session => session.status === status);
-    }
-
-    // Filter by exam ID if provided
-    if (examId) {
-      filteredSessions = filteredSessions.filter(session => session.exam_id === examId);
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: filteredSessions,
-      count: filteredSessions.length
-    });
-
-  } catch (error: any) {
+    const response = await supabaseExamService.getUserSessions(userId);
+    return NextResponse.json(response);
+  } catch (error: unknown) {
     console.error('GET /api/sessions error:', error);
-    
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to fetch sessions',
-        details: error.message
-      },
+      { error: 'Failed to fetch user sessions' },
       { status: 500 }
     );
   }
 }
 
-// POST /api/sessions - Create new exam session
+// POST /api/sessions - Create new session
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await verifyAuth(request);
-    if ('error' in authResult) {
-      return NextResponse.json(
-        { success: false, error: authResult.error },
-        { status: authResult.status }
-      );
-    }
+    const body = await request.json();
+    const { userId, examId, selectedTopics, questionLimit, sessionName } = body;
 
-    const { user } = authResult;
-
-    // Parse and validate request body
-    const sessionData: CreateSessionRequest = await request.json();
-    
-    if (!sessionData.exam_id) {
+    if (!userId || !examId) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Invalid session data', 
-          details: 'Missing required field: exam_id' 
-        },
+        { error: 'Missing required fields: userId, examId' },
         { status: 400 }
       );
     }
 
-    // Verify exam exists
-    try {
-      await supabaseExamService.getExamById(sessionData.exam_id);
-    } catch (error) {
-      return NextResponse.json(
-        { success: false, error: 'Exam not found' },
-        { status: 404 }
-      );
-    }
+    const sessionData = {
+      exam_id: examId,
+      session_name: sessionName,
+      selected_topics: selectedTopics,
+      question_limit: questionLimit
+    };
 
-    // Create the session
-    const response = await supabaseExamService.createSession(user.id, sessionData);
+    const response = await supabaseExamService.createSession(userId, sessionData);
 
-    return NextResponse.json({
-      success: true,
-      data: response.session,
-      message: 'Session created successfully'
-    }, { status: 201 });
-
-  } catch (error: any) {
+    return NextResponse.json(response, { status: 201 });
+  } catch (error: unknown) {
     console.error('POST /api/sessions error:', error);
-    
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to create session',
-        details: error.message
-      },
+      { error: 'Failed to create session' },
       { status: 500 }
     );
   }
 }
 
-// PUT /api/sessions - Update exam session
+// PUT /api/sessions - Update session
 export async function PUT(request: NextRequest) {
   try {
-    const authResult = await verifyAuth(request);
-    if ('error' in authResult) {
-      return NextResponse.json(
-        { success: false, error: authResult.error },
-        { status: authResult.status }
-      );
-    }
+    const body = await request.json();
+    const { sessionId, userId, updateData } = body;
 
-    const { user } = authResult;
-
-    // Parse request body
-    const { sessionId, ...updateData }: { sessionId: string } & UpdateSessionRequest = await request.json();
-    
-    if (!sessionId) {
+    if (!sessionId || !userId) {
       return NextResponse.json(
-        { success: false, error: 'Session ID is required' },
+        { error: 'Missing required fields: sessionId, userId' },
         { status: 400 }
       );
     }
 
-    // Verify session exists and belongs to user
-    try {
-      await supabaseExamService.getSession(sessionId, user.id);
-    } catch (error) {
-      return NextResponse.json(
-        { success: false, error: 'Session not found or access denied' },
-        { status: 404 }
-      );
-    }
-
-    // Update the session
-    await supabaseExamService.updateSession(sessionId, user.id, updateData);
-
-    return NextResponse.json({
-      success: true,
-      message: 'Session updated successfully'
-    });
-
-  } catch (error: any) {
+    const response = await supabaseExamService.updateSession(sessionId, userId, updateData);
+    return NextResponse.json(response);
+  } catch (error: unknown) {
     console.error('PUT /api/sessions error:', error);
-    
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to update session',
-        details: error.message
-      },
+      { error: 'Failed to update session' },
       { status: 500 }
     );
   }

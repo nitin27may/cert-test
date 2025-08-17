@@ -6,9 +6,8 @@ import Header from '@/components/Header';
 import { useExamData } from '@/hooks/useExamData';
 import { examService } from '@/lib/api/examService';
 import { supabaseExamService } from '@/lib/services/supabaseService';
-import { CertificationInfo } from '@/lib/types';
+import { ParsedCertificationInfo } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
-import Link from 'next/link';
 
 export default function ExamSetupPage() {
   const params = useParams();
@@ -21,8 +20,9 @@ export default function ExamSetupPage() {
   const [questionCount, setQuestionCount] = useState(50);
   const [timeLimit, setState] = useState(90);
   const [difficulty, setDifficulty] = useState<string>('mix');
-  const [certificationInfo, setCertificationInfo] = useState<CertificationInfo | null>(null);
+  const [certificationInfo, setCertificationInfo] = useState<ParsedCertificationInfo | null>(null);
   const [isStarting, setIsStarting] = useState(false);
+  const [isCertificationDropdownOpen, setIsCertificationDropdownOpen] = useState(false);
 
   useEffect(() => {
     if (exam) {
@@ -38,8 +38,8 @@ export default function ExamSetupPage() {
       try {
         const examData = await examService.getExamById(examId);
         
-        if (examData && examData.certificationInfo) {
-          setCertificationInfo(examData.certificationInfo);
+        if (examData && examData.certification_info) {
+          setCertificationInfo(examData.certification_info);
         }
       } catch (err) {
         console.error('Error loading certification info:', err);
@@ -48,6 +48,19 @@ export default function ExamSetupPage() {
 
     loadCertificationInfo();
   }, [examId]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (isCertificationDropdownOpen && !target.closest('.certification-dropdown')) {
+        setIsCertificationDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isCertificationDropdownOpen]);
 
   const handleTopicToggle = (topicId: string) => {
     setSelectedTopics(prev => 
@@ -93,16 +106,16 @@ export default function ExamSetupPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading exam...</div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-lg text-gray-900 dark:text-white">Loading exam...</div>
       </div>
     );
   }
 
   if (!exam) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Exam not found</div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-lg text-gray-900 dark:text-white">Exam not found</div>
       </div>
     );
   }
@@ -126,7 +139,7 @@ export default function ExamSetupPage() {
             <div className="flex items-start justify-between">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                  {certificationInfo?.title}
+                  {certificationInfo?.title || exam.title}
                 </h1>
                 <p className="text-gray-600 dark:text-gray-300">
                   {certificationInfo?.description || exam.description}
@@ -134,7 +147,7 @@ export default function ExamSetupPage() {
                 {certificationInfo && (
                   <div className="mt-2 flex flex-wrap gap-2">
                     <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 px-3 py-1 rounded-full text-sm font-medium">
-                      {certificationInfo.examCode}
+                      {certificationInfo.exam_code}
                     </span>
                     <span className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 px-3 py-1 rounded-full text-sm font-medium">
                       {certificationInfo.level}
@@ -145,53 +158,103 @@ export default function ExamSetupPage() {
                   </div>
                 )}
               </div>
-              <button
-                onClick={() => router.push(`/exam/${examId}/certification-info`)}
-                className="bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 p-3 rounded-full transition-colors group"
-                title="View Certification Information & Exam Structure"
-              >
-                <svg className="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-              </button>
-            </div>
-          </div>
+              <div className="relative">
+                <button
+                  onClick={() => setIsCertificationDropdownOpen(!isCertificationDropdownOpen)}
+                  className="bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 p-3 rounded-full transition-colors group"
+                  title="View Certification Information & Exam Structure"
+                >
+                  <svg className="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                </button>
 
-          {/* Info Button */}
-          <div className="flex justify-end mb-6">
-            <Link
-              href={`/exam/${examId}/certification-info`}
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-              </svg>
-              Certification Info
-            </Link>
-          </div>
+                {/* Dropdown */}
+                {isCertificationDropdownOpen && (
+                  <div className="certification-dropdown absolute top-full right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-2 z-50">
+                    <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700">
+                      <h4 className="font-semibold text-gray-900 dark:text-white text-sm">Certification Overview</h4>
+                    </div>
+                    
+                    {certificationInfo ? (
+                      <>
+                        {/* Quick Info */}
+                        <div className="px-4 py-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-500 dark:text-gray-400">Exam Code:</span>
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">{certificationInfo.exam_code}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-500 dark:text-gray-400">Level:</span>
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">{certificationInfo.level}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-500 dark:text-gray-400">Validity:</span>
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">{certificationInfo.validity}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-500 dark:text-gray-400">Duration:</span>
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">{certificationInfo.exam_details?.duration}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-500 dark:text-gray-400">Questions:</span>
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">{certificationInfo.exam_details?.questions}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-500 dark:text-gray-400">Passing Score:</span>
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">{certificationInfo.exam_details?.passingScore}</span>
+                          </div>
+                        </div>
 
-          {/* Info Button Explanation */}
-          <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
-            <div className="flex items-start space-x-3">
-              <div className="bg-blue-100 dark:bg-blue-800 p-2 rounded-full">
-                <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-              </div>
-              <div className="flex-1">
-                <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-1">Certification Information</h4>
-                <p className="text-sm text-blue-700 dark:text-blue-300">
-                  Click the info button (ℹ️) in the top right to view detailed certification information, exam structure, weightage, study resources, and career paths.
-                  {certificationInfo ? (
-                    <span className="block mt-1 text-green-600 dark:text-green-400">
-                      <strong>✓</strong> Using certification info for title, description, and exam details.
-                    </span>
-                  ) : (
-                    <span className="block mt-1 text-yellow-600 dark:text-yellow-400">
-                      <strong>Note:</strong> Certification details are pulled from Supabase. Add them via the admin API or directly in the <code className="bg-yellow-100 dark:bg-yellow-800 px-1 rounded">certification_info</code> table. See <code className="bg-yellow-100 dark:bg-yellow-800 px-1 rounded">SETUP-GUIDE.md</code>.
-                    </span>
-                  )}
-                </p>
+                        {/* Skills Measured Preview */}
+                        {certificationInfo.skills_measured && certificationInfo.skills_measured.length > 0 && (
+                          <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-700">
+                            <h5 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Key Skills:</h5>
+                            <div className="space-y-1">
+                              {certificationInfo.skills_measured.slice(0, 3).map((skill, index) => (
+                                <div key={index} className="flex items-center justify-between text-xs">
+                                  <span className="text-gray-600 dark:text-gray-300">{skill.category}</span>
+                                  <span className="text-gray-500 dark:text-gray-400">{skill.weightage}%</span>
+                                </div>
+                              ))}
+                              {certificationInfo.skills_measured.length > 3 && (
+                                <div className="text-xs text-gray-500 dark:text-gray-400 text-center pt-1">
+                                  +{certificationInfo.skills_measured.length - 3} more skills
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="px-4 py-3">
+                        <div className="text-sm text-gray-500 dark:text-gray-400 text-center">
+                          <div className="text-yellow-500 dark:text-yellow-400 mb-2">⚠️</div>
+                          <p>Certification details not available</p>
+                          <p className="text-xs mt-1">Add via admin API or Supabase</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* View Full Details Link */}
+                    <div className="px-4 py-2 border-t border-gray-100 dark:border-gray-700">
+                      <button
+                        onClick={() => {
+                          setIsCertificationDropdownOpen(false);
+                          router.push(`/exam/${examId}/certification-info`);
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
+                      >
+                        <div className="flex items-center">
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                          </svg>
+                          View Full Details
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -297,7 +360,7 @@ export default function ExamSetupPage() {
                     <option value={50}>50 Questions</option>
                     <option value={80}>80 Questions</option>
                     <option value={100}>100 Questions</option>
-                    <option value={exam.totalQuestions}>All Questions ({exam.totalQuestions})</option>
+                    <option value={exam.total_questions}>All Questions ({exam.total_questions})</option>
                   </select>
                 </div>
 
@@ -360,7 +423,7 @@ export default function ExamSetupPage() {
               disabled={selectedTopics.length === 0 || isStarting}
               className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-8 py-3 rounded-lg text-lg font-medium transition-colors"
             >
-              {isStarting ? 'Starting Exam...' : `Start ${certificationInfo?.examCode || 'Practice'} Exam`}
+              {isStarting ? 'Starting Exam...' : `Start ${certificationInfo?.exam_code || 'Practice'} Exam`}
             </button>
           </div>
         </div>

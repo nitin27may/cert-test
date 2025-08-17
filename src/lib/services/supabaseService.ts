@@ -280,15 +280,15 @@ export class SupabaseExamService {
       }
 
       // Update total questions count
-      const { data: questionsCount } = await supabase
+      const { count: questionsCount } = await supabase
         .from('questions')
-        .select('id', { count: 'exact', head: true })
+        .select('*', { count: 'exact', head: true })
         .eq('exam_id', examId)
         .eq('is_active', true);
 
       await supabase
         .from('exams')
-        .update({ total_questions: questionsCount?.count || 0 })
+        .update({ total_questions: questionsCount || 0 })
         .eq('id', examId);
 
       // Return updated exam
@@ -424,8 +424,12 @@ export class SupabaseExamService {
     }
 
     const questions = (sessionQuestions || [])
-      .map(sq => this.transformQuestionData(sq.questions))
-      .filter(Boolean);
+      .flatMap(sq => {
+        if (Array.isArray(sq.questions)) {
+          return sq.questions.map(q => this.transformQuestionData(q)).filter(Boolean);
+        }
+        return [];
+      });
 
     const parsedSession = this.transformSessionData(session, questions);
     return { session: parsedSession };
@@ -458,7 +462,7 @@ export class SupabaseExamService {
     const sessions = (data || []).map(session => ({
       id: session.id,
       exam_id: session.exam_id,
-      exam_title: session.exams?.title || 'Unknown Exam',
+      exam_title: Array.isArray(session.exams) && session.exams.length > 0 ? session.exams[0].title : 'Unknown Exam',
       status: session.status as SessionStatus,
       session_name: session.session_name,
       current_question_index: session.current_question_index || 0,
@@ -679,7 +683,7 @@ export class SupabaseExamService {
     const results = (data || []).map(result => ({
       id: result.id,
       exam_id: result.exam_id,
-      exam_title: result.exams?.title || 'Unknown Exam',
+      exam_title: Array.isArray(result.exams) && result.exams.length > 0 ? result.exams[0].title : 'Unknown Exam',
       score_percentage: result.score_percentage,
       pass_status: result.pass_status,
       completed_at: result.completed_at,

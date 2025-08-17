@@ -42,7 +42,7 @@ export class RealtimeService {
   /**
    * Subscribe to automatic table changes with optimized filtering
    */
-  async subscribeToTableChanges<T = any>(
+  async subscribeToTableChanges<T extends Record<string, any> = any>(
     channelName: string,
     config: RealtimeSubscriptionConfig,
     onData: (payload: RealtimePostgresChangesPayload<T>) => void,
@@ -54,7 +54,7 @@ export class RealtimeService {
     const channel = supabase
       .channel(channelName)
       .on(
-        'postgres_changes',
+        'postgres_changes' as any,
         {
           event: config.event || '*',
           schema: config.schema || 'public',
@@ -63,7 +63,7 @@ export class RealtimeService {
         },
         (payload) => {
           try {
-            onData(payload as RealtimePostgresChangesPayload<T>);
+            onData(payload as any);
           } catch (error) {
             console.error(`Error handling table change for ${channelName}:`, error);
             onError?.(error);
@@ -71,15 +71,13 @@ export class RealtimeService {
         }
       );
 
-    // Add error handling
-    channel.on('error', (error) => {
-      console.error(`Channel ${channelName} error:`, error);
-      onError?.(error);
-    });
+    // Add error handling - use the error callback from subscribe result
 
-    const { error } = await channel.subscribe();
-    if (error) {
+    try {
+      await channel.subscribe();
+    } catch (error) {
       console.error(`Failed to subscribe to ${channelName}:`, error);
+      onError?.(error);
       throw error;
     }
 
@@ -135,7 +133,7 @@ export class RealtimeService {
             // Parse JSON fields
             const answer = {
               ...payload.new,
-              user_answer: payload.new.user_answer ? JSON.parse(payload.new.user_answer) : []
+              user_answer: (payload.new as any).user_answer ? JSON.parse((payload.new as any).user_answer) : []
             };
             callbacks.onAnswerUpdate?.(answer);
           }
@@ -162,14 +160,11 @@ export class RealtimeService {
         }
       });
 
-    // Error handling
-    channel.on('error', (error) => {
-      console.error(`Exam session channel error:`, error);
-      callbacks.onError?.(error);
-    });
+    // Error handling - will be handled by subscribe result
 
-    const { error } = await channel.subscribe();
-    if (error) {
+    try {
+      await channel.subscribe();
+    } catch (error) {
       console.error(`Failed to subscribe to exam session:`, error);
       throw error;
     }
@@ -297,13 +292,13 @@ export class RealtimeService {
       timestamp: new Date().toISOString()
     };
 
-    const { error } = await channel.send({
-      type: 'broadcast',
-      event: 'session_event',
-      payload
-    });
-
-    if (error) {
+    try {
+      await channel.send({
+        type: 'broadcast',
+        event: 'session_event',
+        payload
+      });
+    } catch (error) {
       console.error('Failed to broadcast session event:', error);
       throw error;
     }
@@ -331,7 +326,7 @@ export class RealtimeService {
         Object.keys(presenceState).forEach(key => {
           const presence = presenceState[key];
           if (presence && presence.length > 0) {
-            presences.push(presence[0] as UserPresenceData);
+            presences.push(presence[0] as unknown as UserPresenceData);
           }
         });
 
@@ -346,13 +341,13 @@ export class RealtimeService {
       });
 
     // Track current user's presence
-    const { error } = await channel.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await channel.track(presenceData);
-      }
-    });
-
-    if (error) {
+    try {
+      await channel.subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track(presenceData);
+        }
+      });
+    } catch (error) {
       console.error('Failed to track presence:', error);
       throw error;
     }

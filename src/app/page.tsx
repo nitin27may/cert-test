@@ -25,7 +25,8 @@ export default function LandingPage() {
   // Prevent hydration mismatch
   if (!mounted || loading) {
     return (
-      <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors"> <div className="flex items-center justify-center min-h-screen">
+      <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors">
+        <div className="flex items-center justify-center min-h-screen">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       </div>
@@ -331,7 +332,7 @@ export default function LandingPage() {
           </p>
           <Link
             href={user ? "/exams" : "/auth/login"}
-            className="bg-white text-blue-600 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 transition-colors transform hover:scale-105 inline-block"
+            className="bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors transform hover:scale-105 inline-block"
           >
             Start Your Free Practice Now
           </Link>
