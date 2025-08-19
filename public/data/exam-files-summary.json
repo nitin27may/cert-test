@@ -1,0 +1,68 @@
+{
+  "generated_on": "2025-08-19T21:30:46.553Z",
+  "source_file": "exams-old.json",
+  "total_exams": 8,
+  "individual_files": [
+    {
+      "exam_id": "ai-900",
+      "filename": "ai-900-exam.json",
+      "title": "AI-900 Azure AI Fundamentals Practice Exam",
+      "total_questions": 1000,
+      "total_topics": 5
+    },
+    {
+      "exam_id": "ai-102",
+      "filename": "ai-102-exam.json",
+      "title": "AI-102 Azure AI Engineer Practice Exam",
+      "total_questions": 1000,
+      "total_topics": 5
+    },
+    {
+      "exam_id": "az-900",
+      "filename": "az-900-exam.json",
+      "title": "AZ-900 Azure Fundamentals Practice Exam",
+      "total_questions": 1000,
+      "total_topics": 3
+    },
+    {
+      "exam_id": "az-204",
+      "filename": "az-204-exam.json",
+      "title": "AZ-204 Developing Solutions for Microsoft Azure Practice Exam",
+      "total_questions": 1000,
+      "total_topics": 5
+    },
+    {
+      "exam_id": "az-400",
+      "filename": "az-400-exam.json",
+      "title": "AZ-400 Designing and Implementing Microsoft DevOps Solutions Practice Exam",
+      "total_questions": 1000,
+      "total_topics": 5
+    },
+    {
+      "exam_id": "az-500",
+      "filename": "az-500-exam.json",
+      "title": "AZ-500 Microsoft Azure Security Technologies Practice Exam",
+      "total_questions": 1000,
+      "total_topics": 4
+    },
+    {
+      "exam_id": "az-104",
+      "filename": "az-104-exam.json",
+      "title": "Azure AZ-104 Practice Exam",
+      "total_questions": 1000,
+      "total_topics": 5
+    },
+    {
+      "exam_id": "az-305",
+      "filename": "az-305-exam.json",
+      "title": "Azure AZ-305 Practice Exam",
+      "total_questions": 1000,
+      "total_topics": 4
+    }
+  ],
+  "notes": [
+    "Each file maintains the same root structure as the original",
+    "Files are named using the pattern: {exam-id}-exam.json",
+    "All original data including metadata and certification info is preserved"
+  ]
+}
