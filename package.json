@@ -7,12 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "migrate:exam-data": "tsx scripts/migrate-exam-data.ts",
-    "setup:db": "npx supabase db reset && npx supabase db push && npm run migrate:exam-data",
-    "backup:db": "tsx scripts/backup-database.ts",
+    "db:push": "supabase db push",
+    "db:reset": "supabase db reset",
     "seed:generate": "tsx scripts/generate-seed.ts",
+    "backup:db": "tsx scripts/backup-database.ts",
     "restore:db": "tsx scripts/restore-database.ts",
-    "reset:db": "tsx scripts/reset-database.ts",
     "verify:backup": "tsx scripts/verify-backup.ts"
   },
   "dependencies": {

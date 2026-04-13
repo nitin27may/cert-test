@@ -98,10 +98,12 @@ npm run dev              # Start development server
 npm run build            # Build for production
 npm run start            # Start production server
 npm run lint             # Run ESLint
-npm run setup:db         # Reset, push migrations, and load JSON exam data (legacy)
-npm run migrate:exam-data # Migrate JSON data into Supabase tables
+npm run db:push          # Apply local migrations to the linked Supabase project
+npm run db:reset         # Local Supabase: drop, re-run migrations, replay seed.sql
 npm run seed:generate    # Pull current public content from the linked project into supabase/seed.sql
 npm run backup:db        # Dump all tables (including user data) as JSON + SQL into backups/
+npm run restore:db       # Restore a backup created by backup:db
+npm run verify:backup    # Sanity-check a backup against the live database
 ```
 
 ## 🗄️ Database Schema
@@ -295,18 +297,10 @@ src/
 3. **Authentication Errors** → Check Supabase keys and auth configuration
 4. **Performance Issues** → Monitor database queries and real-time subscriptions
 
-### Debug Mode
-```bash
-DEBUG=true npm run migrate:exam-data
-```
-
 ## 📖 Documentation
 
-- **[MIGRATION.md](./MIGRATION.md)** - Database setup and migration guide
-- **[SETUP-GUIDE.md](./SETUP-GUIDE.md)** - Complete system setup instructions
-- **[ENV-SETUP.md](./ENV-SETUP.md)** - Environment configuration guide
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Deployment instructions
-- **[work-in-progress.md](./work-in-progress.md)** - Development progress and features
+- **[MIGRATION.md](./MIGRATION.md)** - Database backup and restore procedures
+- **[SETUP-GUIDE.md](./SETUP-GUIDE.md)** - End-to-end system setup walkthrough
 
 ## 🤝 Contributing
 

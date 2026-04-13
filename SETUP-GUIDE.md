@@ -38,25 +38,18 @@ npm install
 
 ### 3. Database Setup
 
-#### 3.1 Create Database Schema
+#### 3.1 Apply schema and RLS
 
-In your Supabase SQL Editor, run the schema creation script:
+Use the Supabase CLI — the baseline migration in `supabase/migrations/` already includes tables, indexes, triggers, and RLS policies:
 
-```sql
--- Copy and paste the contents of supabase-schema.sql
--- This creates all tables, indexes, triggers, and basic RLS policies
+```bash
+supabase link --project-ref <your-ref>
+npm run db:push
 ```
 
-#### 3.2 Apply Security Policies
+If you'd rather paste SQL manually, the source file lives at `supabase/migrations/<timestamp>_initial_schema.sql`.
 
-Run the comprehensive RLS policies:
-
-```sql
--- Copy and paste the contents of rls-policies.sql
--- This applies all security policies, audit logging, and rate limiting
-```
-
-#### 3.3 Enable Real-time
+#### 3.2 Enable Real-time
 
 In Supabase Dashboard:
 1. Go to Database → Replication
@@ -68,11 +61,14 @@ In Supabase Dashboard:
 
 ### 4. Data Migration
 
-#### 4.1 Migrate Existing Data
+#### 4.1 Apply schema and load seed content
 
 ```bash
-# Run the migration script to move data from exams.json to Supabase
-npm run migrate:exam-data
+# Push migrations to the linked Supabase project
+npm run db:push
+
+# Load public exam content (1,916 rows) from supabase/seed.sql
+psql "$SUPABASE_DB_URL" -f supabase/seed.sql
 ```
 
 #### 4.2 Verify Migration
@@ -232,11 +228,9 @@ const [resultsState, resultsActions] = useExamResults(userId);
 echo $NEXT_PUBLIC_SUPABASE_URL
 echo $SUPABASE_SERVICE_ROLE_KEY
 
-# Verify JSON file exists
-ls -la public/data/exams.json
-
-# Run migration with debug
-DEBUG=true npm run migrate:exam-data
+# Verify the linked project and re-push migrations
+supabase status
+npm run db:push
 ```
 
 #### 2. Real-time Not Working
@@ -354,10 +348,10 @@ After setup, verify these features work:
 
 For issues or questions:
 
-1. Check the `work-in-progress.md` documentation
-2. Review console logs for errors
-3. Verify environment configuration
-4. Test with a fresh user account
+1. Review console logs for errors
+2. Verify environment configuration
+3. Test with a fresh user account
+4. Check `MIGRATION.md` for backup/restore procedures
 
 ## 📈 Performance Tips
 

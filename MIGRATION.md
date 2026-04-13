@@ -107,12 +107,14 @@ GROUP BY e.id, e.title;
 ## 🏗️ Schema Setup
 
 ### 1. Create Database Schema
-Run the complete schema creation script in Supabase SQL Editor:
+Apply the baseline migration via the Supabase CLI (preferred):
 
-```sql
--- Copy and paste the contents of scripts/supabase-schema.sql
--- This creates all tables, indexes, triggers, and basic RLS policies
+```bash
+supabase link --project-ref <your-ref>
+npm run db:push
 ```
+
+Or paste the contents of `supabase/migrations/<timestamp>_initial_schema.sql` into the Supabase SQL Editor manually. This creates all tables, indexes, triggers, and basic RLS policies.
 
 **What the schema creates:**
 - **Core Tables**: `exams`, `topics`, `topic_modules`, `questions`, `certification_info`
@@ -171,16 +173,16 @@ ls -la public/data/exams.json
 node -e "console.log(JSON.parse(require('fs').readFileSync('public/data/exams.json')).length + ' exams found')"
 ```
 
-### 2. Run Migration Script
+### 2. Apply migrations and seed
 ```bash
-# Execute the migration
-npm run migrate:exam-data
+# Push schema migrations to the linked Supabase project
+npm run db:push
 
-# Monitor progress in the console
-# The script will show:
-# - Tables being processed
-# - Batch progress
-# - Final summary
+# Load public exam content into the database
+psql "$SUPABASE_DB_URL" -f supabase/seed.sql
+
+# Or, against a local Supabase stack, do both at once:
+npm run db:reset
 ```
 
 ### 3. Migration Verification
@@ -239,9 +241,8 @@ ALTER TYPE question_type ADD VALUE IF NOT EXISTS 'case-study';
 **Duplicate Key Errors**
 ```bash
 # Error: "duplicate key value violates unique constraint"
-# Solution: Clear existing data and re-run migration
-npm run reset:db
-npm run migrate:exam-data
+# Solution: drop the local stack and re-run migrations + seed
+npm run db:reset
 ```
 
 ## 📝 Content Management
@@ -417,8 +418,8 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 
 **Large Dataset Issues**
 ```bash
-# Use batch processing for large datasets
-npm run migrate:exam-data -- --batch-size=500
+# Pull current public content from the linked project into seed.sql
+npm run seed:generate
 ```
 
 ## 🛠️ Maintenance & Monitoring
@@ -562,8 +563,9 @@ After completing the migration, verify these items:
 
 ## 🔗 Reference Files
 
-- **Schema**: `scripts/supabase-schema.sql`
-- **Migration Script**: `scripts/migrate-exam-data.ts`
+- **Schema migration**: `supabase/migrations/`
+- **Seed content**: `supabase/seed.sql`
+- **Seed regenerator**: `scripts/generate-seed.ts`
 - **Services**: `src/lib/services/supabaseService.ts`
 - **Types**: `src/lib/types.ts`
 - **API Routes**: `src/app/api/*`
@@ -584,8 +586,7 @@ For migration issues:
 1. Check the console output for specific error messages
 2. Verify environment variables are correct
 3. Ensure Supabase project has proper permissions
-4. Check `work-in-progress.md` for known issues
-5. Create an issue in the GitHub repository
+4. Create an issue in the GitHub repository
 
 ---
 
