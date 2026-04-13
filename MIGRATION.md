@@ -160,17 +160,16 @@ ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rate_limits ENABLE ROW LEVEL SECURITY;
 
--- Apply security policies (see scripts/rls-policies.sql for full policies)
+-- Apply security policies (see supabase/migrations/<timestamp>_initial_schema.sql for full policies)
 ```
 
 ## 📊 Data Migration
 
 ### 1. Prepare Source Data
-Ensure your `public/data/exams.json` file is ready:
+Seed content lives in `supabase/seed.sql` (generated from the source-of-truth project via `npm run seed:generate`):
 ```bash
-# Verify JSON file exists and is valid
-ls -la public/data/exams.json
-node -e "console.log(JSON.parse(require('fs').readFileSync('public/data/exams.json')).length + ' exams found')"
+ls -la supabase/seed.sql
+wc -l supabase/seed.sql
 ```
 
 ### 2. Apply migrations and seed
