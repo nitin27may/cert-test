@@ -13,9 +13,7 @@
     "seed:generate": "tsx scripts/generate-seed.ts",
     "restore:db": "tsx scripts/restore-database.ts",
     "reset:db": "tsx scripts/reset-database.ts",
-    "verify:backup": "tsx scripts/verify-backup.ts",
-    "create:test-env": "tsx scripts/create-test-environment.ts",
-    "cleanup:test-env": "tsx scripts/cleanup-test-environment.ts"
+    "verify:backup": "tsx scripts/verify-backup.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
