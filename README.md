@@ -1,47 +1,70 @@
-# 🚀 Azure Certification Practice Exams
+# Azure Certification Practice Exams
 
-A production-ready, real-time practice exam platform for Azure certifications powered by **Supabase** (database, auth, realtime) and **Next.js 14**. Features comprehensive exam management, real-time synchronization, advanced analytics, and enterprise-grade security.
+A production-ready, real-time practice exam platform for Azure certifications, powered by Supabase (database, auth, realtime) and Next.js 15. It provides exam management, real-time synchronization across devices, analytics, and row-level security out of the box.
 
-## ✨ Key Features
+![Landing page](./image.png)
 
-- **🎯 Real-time Exam Sessions** - Live synchronization across devices with auto-save
-- **📊 Advanced Analytics** - Detailed performance insights, topic analysis, and progress tracking
-- **🔄 Session Management** - Resume interrupted exams, multi-device support
-- **🔒 Enterprise Security** - Row Level Security (RLS), audit logging, rate limiting
-- **📱 Responsive Design** - Modern UI with dark mode support
-- **⚡ Performance Optimized** - Batched updates, connection monitoring, optimistic UI
+## Table of Contents
 
-## 🏗️ Architecture
+- [Key Features](#key-features)
+- [Architecture](#architecture)
+- [Quick Start](#quick-start)
+- [Available Scripts](#available-scripts)
+- [Database Schema](#database-schema)
+- [Core Services](#core-services)
+- [Available Exams](#available-exams)
+- [Authentication Setup](#authentication-setup)
+- [Deployment](#deployment)
+- [Development](#development)
+- [Troubleshooting](#troubleshooting)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Key Features
+
+- **Real-time exam sessions** — live synchronization across devices with auto-save
+- **Advanced analytics** — performance insights, topic analysis, and progress tracking
+- **Session management** — resume interrupted exams, multi-device support
+- **Enterprise security** — Row Level Security (RLS), audit logging, rate limiting
+- **Responsive design** — modern UI with dark mode support
+- **Performance-optimized** — batched updates, connection monitoring, optimistic UI
+
+## Architecture
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Next.js 14   │    │    Supabase     │    │   Real-time     │
-│   Frontend     │◄──►│    Database     │◄──►│  Sync Engine    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  React Hooks   │    │   PostgreSQL    │    │  WebSockets     │
-│  & Components  │    │   + RLS + Auth  │    │  + Presence     │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+┌────────────────┐    ┌────────────────┐    ┌────────────────┐
+│   Next.js 15   │    │    Supabase    │    │   Real-time    │
+│    Frontend    │◄──►│    Database    │◄──►│  Sync Engine   │
+└────────────────┘    └────────────────┘    └────────────────┘
+        │                     │                     │
+        ▼                     ▼                     ▼
+┌────────────────┐    ┌────────────────┐    ┌────────────────┐
+│  React hooks   │    │   PostgreSQL   │    │   WebSockets   │
+│  & components  │    │   + RLS + Auth │    │   + presence   │
+└────────────────┘    └────────────────┘    └────────────────┘
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Prerequisites
+
 - Node.js 18+ and npm
-- Supabase account and project
+- A Supabase account and project
 - Git
 
-### 2. Clone & Install
+### 2. Clone and install
+
 ```bash
 git clone <your-repo-url>
 cd cert-test
 npm install
 ```
 
-### 3. Environment Setup
+### 3. Environment setup
+
 Create `.env.local` in the project root. Grab the values from Supabase Dashboard → Project Settings → API:
+
 ```bash
 # Public — exposed to the browser
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
@@ -55,18 +78,20 @@ SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOi...
 SUPABASE_ACCESS_TOKEN=sbp_...
 ```
 
-### 4. Database Setup
+### 4. Database setup
 
 The project uses Supabase CLI migrations. The full schema lives in [supabase/migrations/](supabase/migrations/) and the seed content lives in [supabase/seed.sql](supabase/seed.sql).
 
 **Linking to an existing project:**
+
 ```bash
 supabase link --project-ref <your-project-ref>
-supabase db push           # apply migrations to the linked remote
-psql "$DATABASE_URL" -f supabase/seed.sql   # load seed content (one-off)
+supabase db push                             # apply migrations to the linked remote
+psql "$DATABASE_URL" -f supabase/seed.sql    # load seed content (one-off)
 ```
 
 **Spinning up a fresh Supabase project from scratch:**
+
 1. Create a new project in the Supabase Dashboard. Note the project ref and the database password you set.
 2. Link and push:
    ```bash
@@ -85,13 +110,14 @@ psql "$DATABASE_URL" -f supabase/seed.sql   # load seed content (one-off)
    npm run seed:generate
    ```
 
-### 5. Start Development
+### 5. Start development
+
 ```bash
 npm run dev
 # Open http://localhost:3000
 ```
 
-## 📚 Available Scripts
+## Available Scripts
 
 ```bash
 npm run dev              # Start development server
@@ -106,85 +132,64 @@ npm run restore:db       # Restore a backup created by backup:db
 npm run verify:backup    # Sanity-check a backup against the live database
 ```
 
-## 🗄️ Database Schema
+## Database Schema
 
-The system uses a comprehensive relational database with the following core tables:
+The system uses a relational schema with the following core tables:
 
-| Table | Purpose | Key Features |
-|-------|---------|--------------|
-| `exams` | Exam metadata | Title, description, question count |
-| `topics` | Exam domains | Weightage, modules, relationships |
-| `questions` | Question bank | Types, difficulty, explanations |
-| `user_exam_sessions` | User sessions | Progress, status, timing |
-| `user_answers` | User responses | Correctness, timing, flags |
-| `exam_results` | Performance data | Scores, analytics, insights |
-| `certification_info` | Cert details | Requirements, resources, career paths |
+| Table                | Purpose           | Key features                          |
+| -------------------- | ----------------- | ------------------------------------- |
+| `exams`              | Exam metadata     | Title, description, question count    |
+| `topics`             | Exam domains      | Weightage, modules, relationships     |
+| `questions`          | Question bank     | Types, difficulty, explanations       |
+| `user_exam_sessions` | User sessions     | Progress, status, timing              |
+| `user_answers`       | User responses    | Correctness, timing, flags            |
+| `exam_results`       | Performance data  | Scores, analytics, insights           |
+| `certification_info` | Cert details      | Requirements, resources, career paths |
 
-## 🔧 Core Services
+## Core Services
 
-### Supabase Service Layer
-- **CRUD Operations** for all entities
-- **Data Transformation** and validation
-- **Relationship Management** with automatic joins
-- **Batch Operations** for performance
+### Supabase service layer
 
-### Real-time Service
-- **Postgres Changes** for live updates
-- **Broadcast Channels** for cross-client communication
-- **Presence Tracking** for user activity
-- **Auto-sync Manager** for optimized updates
+- CRUD operations for all entities
+- Data transformation and validation
+- Relationship management with automatic joins
+- Batch operations for performance
 
-### Session Management
-- **Automatic Session Creation** and resumption
-- **Real-time Progress Tracking** across devices
-- **Pause/Resume Functionality** with state persistence
-- **Connection Monitoring** and offline handling
+### Real-time service
 
-## 🎯 Available Exams
+- Postgres Changes for live updates
+- Broadcast channels for cross-client communication
+- Presence tracking for user activity
+- Auto-sync manager for optimized updates
 
-- **AZ-104** - Azure Administrator Associate (200+ questions, 60% networking focus)
-- **AZ-305** - Azure Solutions Architect Expert (150+ questions, 50% networking focus)
-- **AI-900** - Azure AI Fundamentals (100+ questions, AI/ML focus)
+### Session management
 
-## 📱 User Experience
+- Automatic session creation and resumption
+- Real-time progress tracking across devices
+- Pause/resume functionality with state persistence
+- Connection monitoring and offline handling
 
-### Landing Page
-- Modern, responsive design with dark mode
-- Feature highlights and exam overviews
-- Quick access to practice exams
+## Available Exams
 
-### Dashboard
-- Real-time session management
-- Performance analytics and insights
-- Recent results and achievements
-- Quick actions for exam management
-
-### Exam Interface
-- Clean, distraction-free question display
-- Real-time answer submission
-- Progress tracking and navigation
-- Pause/resume functionality
-
-## 🔒 Security Features
-
-- **Row Level Security (RLS)** - Users can only access their own data
-- **Authentication** - Supabase Auth with JWT tokens
-- **Rate Limiting** - Prevents abuse and ensures performance
-- **Audit Logging** - Comprehensive activity tracking
-- **Data Validation** - Input sanitization and type checking
+- **AZ-104** — Azure Administrator Associate (200+ questions, 60% networking focus)
+- **AZ-305** — Azure Solutions Architect Expert (150+ questions, 50% networking focus)
+- **AI-900** — Azure AI Fundamentals (100+ questions, AI/ML focus)
 
 ## Authentication Setup
 
 The app uses Supabase Auth with two flows out of the box: email/password and Google OAuth. Both are handled in [src/lib/auth/authService.ts](src/lib/auth/authService.ts) and surfaced via [src/contexts/AuthContext.tsx](src/contexts/AuthContext.tsx). After authentication the provider redirects back to [/auth/callback](src/app/auth/callback/page.tsx).
 
 ### 1. Enable email/password auth
+
 1. Supabase Dashboard → Authentication → Providers → **Email**.
 2. Toggle **Enable Email provider** on.
-3. Decide whether to require email confirmation. If enabled, Supabase sends a magic confirmation link before the user can sign in. The app already calls `signUp` with `emailRedirectTo: <origin>/auth/callback`.
+3. Decide whether to require email confirmation. If enabled, Supabase sends a confirmation link before the user can sign in. The app already calls `signUp` with `emailRedirectTo: <origin>/auth/callback`.
 4. Customize the confirmation, magic-link, and password-reset email templates under Authentication → Email Templates if you want branded copy.
 
 ### 2. Configure redirect URLs
+
 Authentication → URL Configuration:
+
 - **Site URL**: your production origin, e.g. `https://exams.example.com`
 - **Additional Redirect URLs** — add every environment that needs to complete an OAuth round trip:
   ```
@@ -194,23 +199,28 @@ Authentication → URL Configuration:
   https://exams.example.com/auth/callback
   https://exams.example.com/auth/reset-password
   ```
-The wildcard line covers Vercel preview deployments. Without these entries Supabase rejects the redirect after sign-in.
+
+The wildcard line covers Vercel preview deployments. Without these entries, Supabase rejects the redirect after sign-in.
 
 ### 3. Enable Google OAuth (optional)
+
 1. Google Cloud Console → APIs & Services → Credentials → **Create Credentials → OAuth client ID**.
 2. Application type: **Web application**.
 3. Authorized JavaScript origins: `https://<project-ref>.supabase.co` and your production site URL.
 4. Authorized redirect URI: `https://<project-ref>.supabase.co/auth/v1/callback` (Supabase, not your app — Supabase handles the exchange and then forwards to `/auth/callback`).
 5. Copy the Client ID and Client Secret into Supabase Dashboard → Authentication → Providers → **Google**, then enable the provider.
-6. The "Sign in with Google" button in [src/app/auth/login/](src/app/auth/login/) starts working immediately — no app code changes.
+6. The "Sign in with Google" button in [src/app/auth/login/](src/app/auth/login/) starts working immediately — no app code changes required.
 
 ### 4. Row Level Security
+
 RLS policies ship in the initial migration ([supabase/migrations/20260413125941_initial_schema.sql](supabase/migrations/20260413125941_initial_schema.sql)). Public content (`exams`, `topics`, `topic_modules`, `questions`, `certification_info`) is readable by anyone; per-user tables (`user_exam_sessions`, `user_answers`, `exam_results`, `user_preferences`) are scoped to `auth.uid()`. Verify the policies were applied:
+
 ```bash
 supabase db remote commit --dry-run    # shows any drift between local migrations and remote
 ```
 
 ### 5. Test the flow
+
 ```bash
 npm run dev
 # 1. Visit http://localhost:3000/auth/signup and create a test account
@@ -224,6 +234,7 @@ npm run dev
 ### Vercel (recommended)
 
 **One-time setup:**
+
 1. Push the repo to GitHub.
 2. In the Vercel Dashboard → **Add New → Project** → import the repo. Vercel auto-detects Next.js — accept the defaults.
 3. Under **Environment Variables**, add the same keys as `.env.local` (mark `SUPABASE_SERVICE_ROLE_KEY` as Sensitive):
@@ -234,6 +245,7 @@ npm run dev
 5. Copy both URLs into Supabase Dashboard → Authentication → URL Configuration as described in the [Authentication Setup](#authentication-setup) section. Without this step, sign-in succeeds in Supabase but the redirect back to your app fails.
 
 **Ongoing deploys:**
+
 ```bash
 # Preview (any branch)
 vercel
@@ -241,6 +253,7 @@ vercel
 # Promote current branch to production
 vercel --prod
 ```
+
 Or just push to `main` — Vercel auto-deploys connected branches.
 
 ### Connecting to Supabase from Vercel
@@ -260,82 +273,67 @@ git push                               # Vercel redeploys with the new schema in
 ```
 
 ### Database backups
+
 The `npm run backup:db` script dumps every table (including user data) to `backups/<timestamp>/` as both JSON and SQL — see [scripts/backup-database.ts](scripts/backup-database.ts). For a verified-from-prod schema snapshot, use `supabase db dump --schema public -f schema.sql` (requires the DB password). See [MIGRATION.md](./MIGRATION.md) for restore procedures.
 
-## 🛠️ Development
+## Development
 
-### Project Structure
+### Project structure
+
 ```
 src/
-├── app/                 # Next.js 14 app router
+├── app/                # Next.js 15 app router
 │   ├── api/            # API endpoints
 │   ├── dashboard/      # User dashboard
 │   ├── exam/           # Exam interface
 │   └── auth/           # Authentication pages
-├── components/          # Reusable UI components
-├── contexts/            # React contexts (Auth, Theme)
-├── hooks/               # Custom React hooks
-├── lib/                 # Utilities and services
-│   ├── services/        # Supabase and real-time services
-│   ├── types/           # TypeScript type definitions
-│   └── utils/           # Helper functions
-└── store/               # Redux store (legacy support)
+├── components/         # Reusable UI components
+├── contexts/           # React contexts (Auth, Theme)
+├── hooks/              # Custom React hooks
+├── lib/                # Utilities and services
+│   ├── services/       # Supabase and real-time services
+│   ├── types/          # TypeScript type definitions
+│   └── utils/          # Helper functions
+└── store/              # Redux store (legacy support)
 ```
 
-### Key Components
-- **`useOptimizedExamSession`** - Main exam session hook
-- **`useExamResults`** - Results and analytics hook
-- **`useExamData`** - Exam data management hook
-- **`ThemeContext`** - Dark/light mode management
-- **`AuthContext`** - Authentication state management
+### Key components
 
-## 🔍 Troubleshooting
+- **`useOptimizedExamSession`** — main exam session hook
+- **`useExamResults`** — results and analytics hook
+- **`useExamData`** — exam data management hook
+- **`ThemeContext`** — dark/light mode management
+- **`AuthContext`** — authentication state management
 
-### Common Issues
-1. **Migration Fails** → Check environment variables and service role key
-2. **Real-time Not Working** → Verify RLS policies and real-time settings
-3. **Authentication Errors** → Check Supabase keys and auth configuration
-4. **Performance Issues** → Monitor database queries and real-time subscriptions
+## Troubleshooting
 
-## 📖 Documentation
+### Common issues
 
-- **[MIGRATION.md](./MIGRATION.md)** - Database backup and restore procedures
-- **[SETUP-GUIDE.md](./SETUP-GUIDE.md)** - End-to-end system setup walkthrough
+1. **Migration fails** — check environment variables and the service role key.
+2. **Real-time not working** — verify RLS policies and real-time settings.
+3. **Authentication errors** — check Supabase keys and auth configuration.
+4. **Performance issues** — monitor database queries and real-time subscriptions.
 
-## 🤝 Contributing
+## Documentation
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+- [MIGRATION.md](./MIGRATION.md) — database backup and restore procedures
+- [SETUP-GUIDE.md](./SETUP-GUIDE.md) — end-to-end system setup walkthrough
+- [CLAUDE.md](./CLAUDE.md) — guidance for Claude Code when working in this repo
 
-### Development Guidelines
-- Follow TypeScript best practices
-- Ensure all tests pass
-- Update documentation for new features
-- Follow the existing code style
+## Contributing
 
-## 📄 License
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feature/amazing-feature`).
+3. Commit your changes (`git commit -m 'Add amazing feature'`).
+4. Push to the branch (`git push origin feature/amazing-feature`).
+5. Open a pull request.
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### Development guidelines
 
-## 🆘 Support
+- Follow TypeScript best practices.
+- Update documentation for new features.
+- Follow the existing code style.
 
-- **Documentation**: Check the markdown files in the project
-- **Issues**: Create an issue in the GitHub repository
-- **Discussions**: Use GitHub Discussions for questions and ideas
+## License
 
-## 🎉 Acknowledgments
-
-- **Supabase** for the excellent backend-as-a-service platform
-- **Next.js** team for the amazing React framework
-- **Tailwind CSS** for the utility-first CSS framework
-- **Azure** for the certification content and structure
-
----
-
-**Ready to ace your Azure certifications?** 🚀 Start practicing with real exam questions and track your progress in real-time!
-
-
-
+This project is licensed under the MIT License — see the [LICENSE](./LICENSE) file for details.
