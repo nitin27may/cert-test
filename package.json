@@ -10,6 +10,7 @@
     "migrate:exam-data": "tsx scripts/migrate-exam-data.ts",
     "setup:db": "npx supabase db reset && npx supabase db push && npm run migrate:exam-data",
     "backup:db": "tsx scripts/backup-database.ts",
+    "seed:generate": "tsx scripts/generate-seed.ts",
     "restore:db": "tsx scripts/restore-database.ts",
     "reset:db": "tsx scripts/reset-database.ts",
     "verify:backup": "tsx scripts/verify-backup.ts",
